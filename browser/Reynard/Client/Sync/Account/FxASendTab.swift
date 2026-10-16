@@ -190,12 +190,14 @@ nonisolated enum FxASendTabProtocol {
             info: cekInfo,
             outputByteCount: 16
         )
-        let baseNonce: [UInt8] = HKDF<SHA256>.deriveKey(
+        let nonceKey = HKDF<SHA256>.deriveKey(
             inputKeyMaterial: ikm,
             salt: salt,
             info: nonceInfo,
             outputByteCount: 12
-        ).withUnsafeBytes { [UInt8]($0) }
+        )
+        let baseNonceData: Data = nonceKey.withUnsafeBytes { Data($0) }
+        let baseNonce: [UInt8] = Array(baseNonceData)
 
         var output = Data()
         var offset = 0
@@ -209,23 +211,30 @@ nonisolated enum FxASendTabProtocol {
             let isLastRecord = end == body.count
 
             // Each record's nonce is the base nonce XOR the record number.
-            var nonce = baseNonce
+            var nonce: [UInt8] = baseNonce
             for position in 0..<8 {
-                nonce[11 - position] ^= UInt8((sequence >> UInt64(8 * position)) & 0xff)
+                let shift: UInt64 = UInt64(8 * position)
+                let sequenceByte: UInt8 = UInt8(truncatingIfNeeded: sequence >> shift)
+                nonce[11 - position] = nonce[11 - position] ^ sequenceByte
             }
-            let sealedBox = try AES.GCM.SealedBox(
-                nonce: AES.GCM.Nonce(data: Data(nonce)),
-                ciphertext: Data(record[0..<(record.count - 16)]),
-                tag: Data(record[(record.count - 16)...])
-            )
-            let plain = [UInt8](try AES.GCM.open(sealedBox, using: contentKey))
+            let recordNonce = try AES.GCM.Nonce(data: Data(nonce))
+            let cipherLength = record.count - 16
+            let cipherBytes = Data(record[0..<cipherLength])
+            let tagBytes = Data(record[cipherLength..<record.count])
+            let sealedBox = try AES.GCM.SealedBox(nonce: recordNonce, ciphertext: cipherBytes, tag: tagBytes)
+            let opened: Data = try AES.GCM.open(sealedBox, using: contentKey)
+            let plain: [UInt8] = Array(opened)
 
             // Strip padding: zeros, then a 0x01 delimiter (0x02 on the last record).
+            let expectedDelimiter: UInt8 = isLastRecord ? 2 : 1
             var delimiter = plain.count - 1
-            while delimiter >= 0, plain[delimiter] == 0 {
+            while delimiter >= 0 && plain[delimiter] == 0 {
                 delimiter -= 1
             }
-            guard delimiter >= 0, plain[delimiter] == (isLastRecord ? 0x02 : 0x01) else {
+            guard delimiter >= 0 else {
+                throw FxASendTabError.malformedMessage
+            }
+            guard plain[delimiter] == expectedDelimiter else {
                 throw FxASendTabError.malformedMessage
             }
             output.append(contentsOf: plain[0..<delimiter])
@@ -264,12 +273,13 @@ final class FxASendTab {
             throw FxAAccountError.notSignedIn
         }
 
-        var target = knownDevices[deviceID]
-        if target == nil {
+        var lookup = knownDevices[deviceID]
+        if lookup == nil {
             _ = try await fetchDevices()
-            target = knownDevices[deviceID]
+            lookup = knownDevices[deviceID]
         }
-        guard let target, let commandData = target.availableCommands[FxASendTabProtocol.commandName] else {
+        guard let target = lookup,
+              let commandData = target.availableCommands[FxASendTabProtocol.commandName] else {
             throw FxASendTabError.deviceCannotReceiveTabs
         }
 
