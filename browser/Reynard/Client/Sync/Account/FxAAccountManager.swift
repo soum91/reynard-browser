@@ -389,8 +389,10 @@ final class FxAAccountManager {
                 account = current
                 FxAAccountStorage.save(current)
             }
+            FxADebugLog.shared.log("device registered with the account")
         } catch {
             NSLog("Reynard Sync: device registration failed: %@", error.localizedDescription)
+            FxADebugLog.shared.log("device registration failed: \(error.localizedDescription)")
         }
     }
 
