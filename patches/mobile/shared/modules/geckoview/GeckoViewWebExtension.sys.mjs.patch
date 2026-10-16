@@ -60,9 +60,9 @@ index 2f2120d22694..b71d95e2c7bd 100644
 -      aCallback.onError(`Only resource://android/... URIs are allowed.`);
 +    const isAndroidResource =
 +      uri.scheme === "resource" && uri.host === "android";
-+    const isIOSReaderViewResource =
-+      uri.spec === "resource://app/extensions/readerview/";
-+    if (!isAndroidResource && !isIOSReaderViewResource) {
++    const isIOSBuiltInResource =
++      /^resource:\/\/app\/extensions\/(readerview|fxawebchannel)\/$/.test(uri.spec);
++    if (!isAndroidResource && !isIOSBuiltInResource) {
 +      aCallback.onError(
 +        `Only resource://android/... URIs are allowed.`
 +      );
@@ -70,7 +70,7 @@ index 2f2120d22694..b71d95e2c7bd 100644
      }
  
 -    if (uri.fileName !== "") {
-+    if (!isIOSReaderViewResource && uri.fileName !== "") {
++    if (!isIOSBuiltInResource && uri.fileName !== "") {
        aCallback.onError(
          `This URI does not point to a folder. Note: folders URIs must end with a "/".`
        );
