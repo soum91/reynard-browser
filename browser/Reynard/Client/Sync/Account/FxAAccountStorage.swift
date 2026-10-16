@@ -32,6 +32,13 @@ struct FxAAccountState: Codable, Equatable {
     /// Our record ID in the Sync `clients` and `tabs` collections.
     var clientRecordID: String
     var signedInAt: Date
+    /// Receive Tab: base64url P-256 private key and auth secret for incoming tabs.
+    var commandKeysPrivate: String?
+    var commandKeysAuthSecret: String?
+    /// The Sync key id we last advertised our receive keys under.
+    var commandsRegisteredKID: String?
+    /// Index of the last device command we processed.
+    var lastHandledCommandIndex: Int?
 }
 
 enum FxAAccountStorage {

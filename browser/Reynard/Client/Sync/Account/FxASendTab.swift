@@ -32,9 +32,12 @@ nonisolated enum FxASendTabError: Error, LocalizedError {
     case deviceCannotReceiveTabs
     case deviceKeysUnreadable
     case pageTooLarge
+    case malformedMessage
 
     var errorDescription: String? {
         switch self {
+        case .malformedMessage:
+            return NSLocalizedString("The tab sent to this device couldn't be read.", comment: "")
         case .deviceCannotReceiveTabs:
             return NSLocalizedString("That device can't receive tabs right now. Open Firefox on it and try again.", comment: "")
         case .deviceKeysUnreadable:
@@ -141,6 +144,97 @@ nonisolated enum FxASendTabProtocol {
         output.append(sealed.tag)
         return output
     }
+
+    /// RFC 8291 (Web Push) aes128gcm decryption, for tabs other devices send us.
+    /// Checked against the example in the RFC.
+    static func decrypt(_ message: Data, receiverPrivateKey: P256.KeyAgreement.PrivateKey, authSecret: Data) throws -> Data {
+        // Header: salt (16) | record size (4) | key id length (1) | key id (the sender's public key).
+        let bytes = [UInt8](message)
+        guard bytes.count > 21, bytes.count <= 64 * 1_024 else {
+            throw FxASendTabError.malformedMessage
+        }
+        let salt = Data(bytes[0..<16])
+        var recordSize = 0
+        for index in 16..<20 {
+            recordSize = (recordSize << 8) | Int(bytes[index])
+        }
+        let keyIDLength = Int(bytes[20])
+        guard keyIDLength == 65, bytes.count > 21 + keyIDLength, recordSize > 17, authSecret.count == 16 else {
+            throw FxASendTabError.malformedMessage
+        }
+        let senderPublic = Data(bytes[21..<(21 + keyIDLength)])
+        let body = Array(bytes[(21 + keyIDLength)...])
+
+        let senderKey = try P256.KeyAgreement.PublicKey(x963Representation: senderPublic)
+        let shared = try receiverPrivateKey.sharedSecretFromKeyAgreement(with: senderKey)
+        let receiverPublic = receiverPrivateKey.publicKey.x963Representation
+
+        var keyInfo = Data("WebPush: info".utf8)
+        keyInfo.append(0)
+        keyInfo.append(receiverPublic)
+        keyInfo.append(senderPublic)
+        let ikm = shared.hkdfDerivedSymmetricKey(
+            using: SHA256.self,
+            salt: authSecret,
+            sharedInfo: keyInfo,
+            outputByteCount: 32
+        )
+
+        var cekInfo = Data("Content-Encoding: aes128gcm".utf8)
+        cekInfo.append(0)
+        var nonceInfo = Data("Content-Encoding: nonce".utf8)
+        nonceInfo.append(0)
+        let contentKey = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: ikm,
+            salt: salt,
+            info: cekInfo,
+            outputByteCount: 16
+        )
+        let baseNonce: [UInt8] = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: ikm,
+            salt: salt,
+            info: nonceInfo,
+            outputByteCount: 12
+        ).withUnsafeBytes { [UInt8]($0) }
+
+        var output = Data()
+        var offset = 0
+        var sequence: UInt64 = 0
+        while offset < body.count {
+            let end = min(offset + recordSize, body.count)
+            let record = Array(body[offset..<end])
+            guard record.count > 16 else {
+                throw FxASendTabError.malformedMessage
+            }
+            let isLastRecord = end == body.count
+
+            // Each record's nonce is the base nonce XOR the record number.
+            var nonce = baseNonce
+            for position in 0..<8 {
+                nonce[11 - position] ^= UInt8((sequence >> UInt64(8 * position)) & 0xff)
+            }
+            let sealedBox = try AES.GCM.SealedBox(
+                nonce: AES.GCM.Nonce(data: Data(nonce)),
+                ciphertext: Data(record[0..<(record.count - 16)]),
+                tag: Data(record[(record.count - 16)...])
+            )
+            let plain = [UInt8](try AES.GCM.open(sealedBox, using: contentKey))
+
+            // Strip padding: zeros, then a 0x01 delimiter (0x02 on the last record).
+            var delimiter = plain.count - 1
+            while delimiter >= 0, plain[delimiter] == 0 {
+                delimiter -= 1
+            }
+            guard delimiter >= 0, plain[delimiter] == (isLastRecord ? 0x02 : 0x01) else {
+                throw FxASendTabError.malformedMessage
+            }
+            output.append(contentsOf: plain[0..<delimiter])
+
+            sequence += 1
+            offset = end
+        }
+        return output
+    }
 }
 
 final class FxASendTab {
@@ -155,6 +249,14 @@ final class FxASendTab {
         let all = try await fetchDevices()
         let currentID = FxAAccountManager.shared.account?.deviceID
         return all.filter { $0.canReceiveTabs && !$0.isCurrentDevice && $0.id != currentID }
+    }
+
+    /// Name of one of the account's devices, for "tab received from ...".
+    func deviceName(for deviceID: String) async -> String? {
+        if knownDevices[deviceID] == nil {
+            _ = try? await fetchDevices()
+        }
+        return knownDevices[deviceID]?.name
     }
 
     func send(url: URL, title: String?, toDeviceID deviceID: String) async throws {
