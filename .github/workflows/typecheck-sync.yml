@@ -2,11 +2,6 @@ name: Typecheck Sync
 
 on:
   workflow_dispatch:
-  push:
-    branches: [firefox-account-sync]
-    paths:
-      - "browser/Reynard/Client/Sync/**"
-      - ".github/workflows/typecheck-sync.yml"
 
 jobs:
   typecheck:
