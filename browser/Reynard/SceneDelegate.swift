@@ -21,7 +21,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = browserViewController
         window.makeKeyAndVisible()
         self.window = window
-        
+
+        FxAReceiveTab.shared.onTabsReceived = { [weak self] tabs in
+            self?.presentReceivedTabs(tabs)
+        }
+
         handleIncomingURLContexts(connectionOptions.urlContexts)
     }
     
@@ -40,13 +44,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         browserViewController.sessionManager.applicationDidBecomeActive()
         browserViewController.tabManager.applicationDidBecomeActive()
         SyncManager.shared.requestSync(reason: .foreground)
+        // Tabs other devices sent to this one arrive while the app is open.
+        FxAReceiveTab.shared.startPolling()
     }
-    
+
     func sceneWillResignActive(_ scene: UIScene) {
         guard let browserViewController = window?.rootViewController as? BrowserViewController else {
             return
         }
-        
+
+        FxAReceiveTab.shared.stopPolling()
         browserViewController.stopScreenOrientationHandling()
         browserViewController.tabManager.applicationWillResignActive()
         browserViewController.sessionManager.applicationWillResignActive()
@@ -74,6 +81,44 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         SyncManager.shared.requestSync(reason: .background)
     }
     
+    private func presentReceivedTabs(_ tabs: [FxAReceivedTab]) {
+        guard let browserViewController = window?.rootViewController as? BrowserViewController,
+              let first = tabs.first else {
+            return
+        }
+
+        var lines: [String] = []
+        if tabs.count == 1 {
+            lines.append(first.title)
+            lines.append(first.url.absoluteString)
+        } else {
+            lines.append(String(format: NSLocalizedString("%d tabs", comment: ""), tabs.count))
+        }
+        if let sender = first.senderName {
+            lines.append(String(format: NSLocalizedString("From %@", comment: ""), sender))
+        }
+
+        let alert = UIAlertController(
+            title: NSLocalizedString("Tab Received", comment: ""),
+            message: lines.joined(separator: "\n"),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: NSLocalizedString("Open", comment: ""), style: .default) { _ in
+            browserViewController.loadViewIfNeeded()
+            browserViewController.sidebarCoordinator.loadContentIfNeeded()
+            for tab in tabs {
+                browserViewController.sidebarCoordinator.openExternalURL(tab.url)
+            }
+        })
+        alert.addAction(UIAlertAction(title: NSLocalizedString("Dismiss", comment: ""), style: .cancel))
+
+        var presenter: UIViewController = browserViewController
+        while let next = presenter.presentedViewController, !(next is UIAlertController) {
+            presenter = next
+        }
+        presenter.present(alert, animated: true)
+    }
+
     private func handleIncomingURLContexts(_ urlContexts: Set<UIOpenURLContext>) {
         guard let incomingURL = urlContexts.first?.url else {
             return

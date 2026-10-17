@@ -56,6 +56,7 @@ final class FxAAccountManager {
     private(set) var lastSignInError: String?
     private var pendingSignIn: PendingSignIn?
     private var accessTokenTask: Task<String, Error>?
+    private var lastRegistrationAttempt: Date?
 
     var isSignedIn: Bool {
         account != nil
@@ -110,6 +111,7 @@ final class FxAAccountManager {
         }
 
         pendingSignIn = PendingSignIn(state: state, pkce: pkce, keysFlow: keysFlow, startedAt: Date())
+        FxADebugLog.shared.log("sign-in started (auth endpoint \(config.authorizationEndpoint.host ?? "?"))")
         lastSignInError = nil
         postAccountStateDidChange()
         return url
@@ -118,9 +120,11 @@ final class FxAAccountManager {
     /// Called when accounts.firefox.com sends `fxaccounts:oauth_login`.
     func completeSignIn(code: String, state: String, declinedEngines: [String]) async throws {
         guard let pending = pendingSignIn else {
+            FxADebugLog.shared.log("completeSignIn: no pending sign-in")
             throw FxAAccountError.noPendingSignIn
         }
         guard pending.state == state else {
+            FxADebugLog.shared.log("completeSignIn: state mismatch")
             throw FxAAccountError.stateMismatch
         }
         pendingSignIn = nil
@@ -134,6 +138,7 @@ final class FxAAccountManager {
                 "code_verifier": pending.pkce.verifier,
             ])
 
+            FxADebugLog.shared.log("token exchange ok (fields: \(response.keys.sorted().joined(separator: ",")))")
             guard let refreshToken = response["refresh_token"] as? String,
                   let accessToken = response["access_token"] as? String else {
                 throw FxAAccountError.missingTokens
@@ -143,6 +148,7 @@ final class FxAAccountManager {
             }
 
             let syncKey = try Self.extractSyncKey(from: pending.keysFlow.decrypt(jwe: keysJWE))
+            FxADebugLog.shared.log("sync key decrypted")
             let expiresIn = (response["expires_in"] as? NSNumber)?.doubleValue ?? 3_600
 
             var newAccount = FxAAccountState(
@@ -185,6 +191,7 @@ final class FxAAccountManager {
             await registerDevice()
             SyncManager.shared.requestSync(reason: .signIn)
         } catch {
+            FxADebugLog.shared.log("completeSignIn failed: \(error.localizedDescription)")
             lastSignInError = error.localizedDescription
             postAccountStateDidChange()
             throw error
@@ -358,7 +365,34 @@ final class FxAAccountManager {
         try await FxAHTTP.getJSON(config.userInfoEndpoint, headers: ["Authorization": "Bearer \(accessToken)"])
     }
 
+    /// Applies a change to the stored account and saves it.
+    func updateAccount(_ change: (inout FxAAccountState) -> Void) {
+        guard var current = account else {
+            return
+        }
+        change(&current)
+        account = current
+        FxAAccountStorage.save(current)
+    }
+
+    /// Re-registers the device when it hasn't advertised Receive Tab yet (for
+    /// example after updating from a build without it). Backs off after a try.
+    func registerDeviceIfNeeded() async {
+        guard let current = account, !needsReauthentication else {
+            return
+        }
+        guard current.deviceID == nil || current.commandsRegisteredKID != current.syncKey.kid else {
+            return
+        }
+        if let lastRegistrationAttempt, Date().timeIntervalSince(lastRegistrationAttempt) < 10 * 60 {
+            return
+        }
+        lastRegistrationAttempt = Date()
+        await registerDevice()
+    }
+
     /// Registers (or renames) this device so it shows up in the account's device list.
+    /// The record also advertises that this device can receive tabs.
     private func registerDevice() async {
         guard var current = account else {
             return
@@ -372,19 +406,43 @@ final class FxAAccountManager {
             body["id"] = deviceID
         }
 
+        var advertisedKID: String?
+        do {
+            if try FxAReceiveKeys.ensure(in: &current) {
+                account = current
+                FxAAccountStorage.save(current)
+            }
+            body["availableCommands"] = [
+                FxASendTabProtocol.commandName: try FxAReceiveKeys.commandData(for: current, bundle: syncKeyBundle()),
+            ]
+            advertisedKID = current.syncKey.kid
+        } catch {
+            FxADebugLog.shared.log("receive tab keys not prepared: \(error.localizedDescription)")
+        }
+
         do {
             let response = try await FxAHTTP.postJSON(
                 config.authServerURL(path: "account/device"),
                 body: body,
                 headers: ["Authorization": "Bearer \(current.refreshToken)"]
             )
+            var changed = false
             if let deviceID = response["id"] as? String, current.deviceID != deviceID {
                 current.deviceID = deviceID
+                changed = true
+            }
+            if let advertisedKID, current.commandsRegisteredKID != advertisedKID {
+                current.commandsRegisteredKID = advertisedKID
+                changed = true
+            }
+            if changed {
                 account = current
                 FxAAccountStorage.save(current)
             }
+            FxADebugLog.shared.log("device registered with the account\(advertisedKID == nil ? "" : " (can receive tabs)")")
         } catch {
             NSLog("Reynard Sync: device registration failed: %@", error.localizedDescription)
+            FxADebugLog.shared.log("device registration failed: \(error.localizedDescription)")
         }
     }
 

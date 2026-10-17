@@ -436,6 +436,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
                     BookmarkActivity(url: url),
                     AddToFavoritesActivity(url: url),
                     FindInPageActivity(url: url),
+                    SendTabActivity(url: url, title: tab.title),
                     PagePrintActivity(session: tab.session, jobName: tab.title)
                 ],
                 onActivityPerformed: { [weak self] activityType in
