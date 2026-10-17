@@ -86,6 +86,17 @@ nonisolated enum FxASendTabProtocol {
         return data
     }
 
+    /// HKDF (RFC 5869) with SHA-256 for outputs up to 32 bytes. CryptoKit's own
+    /// HKDF type needs iOS 14, and Reynard supports iOS 13.
+    private static func hkdf(ikm: SymmetricKey, salt: Data, info: Data, length: Int) -> Data {
+        let ikmData: Data = ikm.withUnsafeBytes { Data($0) }
+        let prk = HMAC<SHA256>.authenticationCode(for: ikmData, using: SymmetricKey(data: salt))
+        var block = info
+        block.append(0x01)
+        let okm = HMAC<SHA256>.authenticationCode(for: block, using: SymmetricKey(data: Data(prk)))
+        return Data(Data(okm).prefix(length))
+    }
+
     /// RFC 8291 (Web Push) aes128gcm encryption of a single record.
     /// Checked against the example in the RFC.
     static func encrypt(plaintext: Data, receiverPublicKey: Data, authSecret: Data) throws -> Data {
@@ -117,19 +128,9 @@ nonisolated enum FxASendTabProtocol {
         cekInfo.append(0)
         var nonceInfo = Data("Content-Encoding: nonce".utf8)
         nonceInfo.append(0)
-        let contentKey = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: ikm,
-            salt: salt,
-            info: cekInfo,
-            outputByteCount: 16
-        )
-        let nonceKey = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: ikm,
-            salt: salt,
-            info: nonceInfo,
-            outputByteCount: 12
-        )
-        let nonceBytes: Data = nonceKey.withUnsafeBytes { Data($0) }
+        let contentKey = SymmetricKey(data: hkdf(ikm: ikm, salt: salt, info: cekInfo, length: 16))
+        let nonceKeyData: Data = hkdf(ikm: ikm, salt: salt, info: nonceInfo, length: 12)
+        let nonceBytes: Data = nonceKeyData
 
         var record = plaintext
         record.append(0x02) // last record delimiter, no extra padding
@@ -184,19 +185,9 @@ nonisolated enum FxASendTabProtocol {
         cekInfo.append(0)
         var nonceInfo = Data("Content-Encoding: nonce".utf8)
         nonceInfo.append(0)
-        let contentKey = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: ikm,
-            salt: salt,
-            info: cekInfo,
-            outputByteCount: 16
-        )
-        let nonceKey = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: ikm,
-            salt: salt,
-            info: nonceInfo,
-            outputByteCount: 12
-        )
-        let baseNonceData: Data = nonceKey.withUnsafeBytes { Data($0) }
+        let contentKey = SymmetricKey(data: hkdf(ikm: ikm, salt: salt, info: cekInfo, length: 16))
+        let nonceKeyData: Data = hkdf(ikm: ikm, salt: salt, info: nonceInfo, length: 12)
+        let baseNonceData: Data = nonceKeyData
         let baseNonce: [UInt8] = Array(baseNonceData)
 
         var output = Data()
