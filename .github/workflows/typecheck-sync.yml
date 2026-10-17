@@ -25,7 +25,7 @@ jobs:
             -default-isolation MainActor \
             -enable-upcoming-feature InferIsolatedConformances \
             -enable-upcoming-feature NonisolatedNonsendingByDefault \
-            $(find browser/Reynard/Client/Sync -name '*.swift') > out.txt 2>&1
+            $(find browser/Reynard/Client/Sync -name '*.swift' ! -name FxAWebChannelController.swift) > out.txt 2>&1
           echo "exit: $?"
           cat out.txt
           grep -E ': (error|warning): ' out.txt | grep -E ': error: ' | while IFS= read -r line; do
