@@ -1,0 +1,40 @@
+name: Typecheck Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [firefox-account-sync]
+    paths:
+      - "browser/Reynard/Client/Sync/**"
+      - ".github/workflows/typecheck-sync.yml"
+
+jobs:
+  typecheck:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: browser/Reynard/Client/Sync
+      - name: Type-check Sync sources
+        run: |
+          set +e
+          swiftc --version
+          xcrun --sdk iphoneos swiftc -typecheck \
+            -target arm64-apple-ios13.0 -swift-version 5 \
+            -default-isolation MainActor \
+            -enable-upcoming-feature InferIsolatedConformances \
+            -enable-upcoming-feature NonisolatedNonsendingByDefault \
+            $(find browser/Reynard/Client/Sync -name '*.swift' ! -name FxAWebChannelController.swift) > out.txt 2>&1
+          echo "exit: $?"
+          cat out.txt
+          grep -E ': (error|warning): ' out.txt | grep -E ': error: ' | while IFS= read -r line; do
+            file=$(echo "$line" | cut -d: -f1)
+            ln=$(echo "$line" | cut -d: -f2)
+            col=$(echo "$line" | cut -d: -f3)
+            msg=$(echo "$line" | cut -d: -f5- | sed 's/%/%25/g')
+            echo "::error file=${file#$PWD/},line=$ln,col=$col::$msg"
+          done
+          # also surface the raw tail as a notice, so it is readable via the API
+          { echo '```'; head -c 60000 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          ! grep -q ': error: ' out.txt
