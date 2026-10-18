@@ -68,8 +68,11 @@ jobs:
             exit 1
           fi
           if ! gh release view nightly -R "$REPO" >/dev/null 2>&1; then
-            gh release create nightly -R "$REPO" --prerelease --target "${{ steps.run.outputs.sha }}" \
-              --title "Nightly (Firefox Sync)" --notes "Rolling nightly build."
+            if ! OUT=$(gh release create nightly -R "$REPO" --prerelease --target "${{ steps.run.outputs.sha }}" \
+              --title "Nightly (Firefox Sync)" --notes "Rolling nightly build." 2>&1); then
+              echo "::error::release create failed: $(echo "$OUT" | tr '\n' ' ')"
+              exit 1
+            fi
           fi
 
       - name: Build source.json
@@ -86,6 +89,9 @@ jobs:
           FILES="dist/Reynard.ipa dist/source.json"
           [ -f dist/Reynard-TrollStore.tipa ] && FILES="$FILES dist/Reynard-TrollStore.tipa"
           [ -f dist/Reynard-Jailbroken.ipa ] && FILES="$FILES dist/Reynard-Jailbroken.ipa"
-          gh release upload nightly -R "$REPO" --clobber $FILES
+          if ! OUT=$(gh release upload nightly -R "$REPO" --clobber $FILES 2>&1); then
+            echo "::error::upload failed: $(echo "$OUT" | tr '\n' ' ' | tail -c 800)"
+            exit 1
+          fi
           gh release edit nightly -R "$REPO" --prerelease --notes-file dist/notes.txt \
             --title "Nightly (Firefox Sync) $(echo ${{ steps.run.outputs.sha }} | cut -c1-7)"
