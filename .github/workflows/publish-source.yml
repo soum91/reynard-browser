@@ -1,0 +1,91 @@
+name: Publish Sideloading Source
+
+# Puts the latest successful nightly on a rolling "nightly" release and
+# refreshes source.json, so AltStore / SideStore (and other sideloaders that
+# read the AltStore source format) can install and update Reynard.
+#
+# Source URL: https://github.com/soum91/reynard-browser/releases/download/nightly/source.json
+
+on:
+  workflow_run:
+    workflows: [Build Nightly]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build Nightly run ID to publish (blank = latest successful)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-source
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the build run
+        id: run
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            RUN_ID="${{ github.event.workflow_run.id }}"
+          elif [ -n "${{ inputs.run_id }}" ]; then
+            RUN_ID="${{ inputs.run_id }}"
+          else
+            RUN_ID=$(gh api "repos/$REPO/actions/workflows/build-nightly.yml/runs?status=success&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          SHA=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .head_sha)
+          BRANCH=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .head_branch)
+          echo "id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Publishing run $RUN_ID ($BRANCH @ ${SHA:0:7})"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.run.outputs.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+          merge-multiple: true
+
+      - name: Make sure the nightly release exists
+        run: |
+          ls -la dist
+          if [ ! -f dist/Reynard.ipa ]; then
+            echo "::error::Run ${{ steps.run.outputs.id }} has no Reynard.ipa (the normal IPA wasn't built), nothing to publish."
+            exit 1
+          fi
+          if ! gh release view nightly -R "$REPO" >/dev/null 2>&1; then
+            gh release create nightly -R "$REPO" --prerelease --target "${{ steps.run.outputs.sha }}" \
+              --title "Nightly (Firefox Sync)" --notes "Rolling nightly build."
+          fi
+
+      - name: Build source.json
+        run: |
+          SHA="${{ steps.run.outputs.sha }}"
+          NOTES="Nightly from ${{ steps.run.outputs.branch }} @ ${SHA:0:7}: Firefox Account sign-in, Sync, Send Tab and Receive Tab."
+          python3 .github/fork/publish_source.py dist/Reynard.ipa \
+            "https://github.com/$REPO/releases/download/nightly/Reynard.ipa" \
+            "$NOTES" dist/source.json
+          echo "$NOTES" > dist/notes.txt
+
+      - name: Upload to the nightly release
+        run: |
+          FILES="dist/Reynard.ipa dist/source.json"
+          [ -f dist/Reynard-TrollStore.tipa ] && FILES="$FILES dist/Reynard-TrollStore.tipa"
+          [ -f dist/Reynard-Jailbroken.ipa ] && FILES="$FILES dist/Reynard-Jailbroken.ipa"
+          gh release upload nightly -R "$REPO" --clobber $FILES
+          gh release edit nightly -R "$REPO" --prerelease --notes-file dist/notes.txt \
+            --title "Nightly (Firefox Sync) $(echo ${{ steps.run.outputs.sha }} | cut -c1-7)"
