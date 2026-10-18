@@ -1,8 +1,8 @@
 name: Update Source
 
+# Upstream's source updater. On this fork, publish-source.yml does the job,
+# so this one only runs by hand.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
