@@ -15,7 +15,7 @@ final class BrowserUpdates: NSObject {
     private(set) var sourceData: Data?
     var cachedReleaseNotes: NSAttributedString?
     
-    private static let sourceURL = "https://github.com/minh-ton/reynard-browser/releases/download/0.0.1-a1/source.json"
+    private static let sourceURL = "https://github.com/soum91/reynard-browser/releases/download/nightly/source.json" // Firefox Sync fork: offer this fork's builds, not upstream's
     private override init() {
         super.init()
         
@@ -42,14 +42,24 @@ final class BrowserUpdates: NSObject {
                   let latestDateStr = latestEntry["date"] as? String else { return }
             
             let currentVersionStr = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0").replacingOccurrences(of: "-dev", with: "")
+            let latestBaseVersion = latestVersionStr.replacingOccurrences(of: "-dev", with: "")
             
-            let versionIsNewer = Self.isVersion(latestVersionStr, greaterThan: currentVersionStr)
-            guard versionIsNewer else { return }
+            // The fork publishes nightlies that keep the same version and differ
+            // only by build (the commit), so a different build counts as an update.
+            let currentBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+            let latestBuild = latestEntry["buildVersion"] as? String ?? ""
+            let isNewerBuildOfSameVersion = !Self.isVersion(currentVersionStr, greaterThan: latestBaseVersion)
+                && !Self.isVersion(latestBaseVersion, greaterThan: currentVersionStr)
+                && !latestBuild.isEmpty && latestBuild != currentBuild
+            
+            let versionIsNewer = Self.isVersion(latestBaseVersion, greaterThan: currentVersionStr)
+            guard versionIsNewer || isNewerBuildOfSameVersion else { return }
             
             let formatter = ISO8601DateFormatter()
             guard let latestDate = formatter.date(from: latestDateStr) else { return }
             
-            if let currentEntry = versions.first(where: { ($0["version"] as? String) == currentVersionStr }),
+            if versionIsNewer,
+               let currentEntry = versions.first(where: { ($0["version"] as? String) == currentVersionStr }),
                let currentDateStr = currentEntry["date"] as? String,
                let currentDate = formatter.date(from: currentDateStr) {
                 guard currentDate < latestDate else { return }
