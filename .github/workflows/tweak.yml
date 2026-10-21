@@ -81,7 +81,16 @@ jobs:
             echo "No 'tweak' release yet; the package is in the run's artifacts."
           fi
 
-      # Sileo repository on the gh-pages branch (Settings > Pages > Deploy from branch: gh-pages).
+  # Sileo repository on the gh-pages branch (Settings > Pages > Deploy from branch: gh-pages).
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sileo-repo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Fetch previous packages
         uses: actions/checkout@v4
         continue-on-error: true
@@ -89,14 +98,17 @@ jobs:
           ref: gh-pages
           path: previous
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: ReynardDefault-build-${{ github.run_number }}
+          path: new
+
       - name: Generate Sileo repository
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq dpkg-dev
           mkdir -p public/debs
           cp previous/debs/*.deb public/debs/ 2>/dev/null || true
-          cp "$DEB" public/debs/
-          # Keep the 10 newest builds.
-          COUNT=$(ls -1 public/debs/*.deb | wc -l)
-          if [ "$COUNT" -gt 10 ]; then ls -1 public/debs/*.deb | sort -V | head -n $((COUNT-10)) | xargs rm -f; fi
+          cp new/*.deb public/debs/
           bash tweak/generate-repo.sh
           ls -l public public/debs
 

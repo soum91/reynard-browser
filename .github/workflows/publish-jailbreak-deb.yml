@@ -1,0 +1,135 @@
+name: Publish Jailbroken Reynard (Sileo)
+
+# Repackages the Jailbroken IPA from a successful Build Nightly run as a rootless .deb
+# (/var/jb/Applications/Reynard.app) and adds it to the Sileo repository on gh-pages.
+# The app is installed by dpkg as root, so it keeps the unsandboxed entitlements it was built with.
+
+on:
+  workflow_run:
+    workflows: [Build Nightly]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build Nightly run ID to package (blank = latest successful)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  deb:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sileo-repo
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the build run
+        id: run
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            RUN_ID="${{ github.event.workflow_run.id }}"
+          elif [ -n "${{ inputs.run_id }}" ]; then
+            RUN_ID="${{ inputs.run_id }}"
+          else
+            RUN_ID=$(gh api "repos/$REPO/actions/workflows/build-nightly.yml/runs?status=success&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          echo "id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "build=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_number)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .head_sha)" >> "$GITHUB_OUTPUT"
+
+      - name: Download the Jailbroken IPA
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.run.outputs.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: Reynard-Jailbroken.ipa
+          path: ipa
+
+      - name: Build the .deb
+        run: |
+          BUILD="${{ steps.run.outputs.build }}"
+          IPA=$(ls ipa/*.ipa | head -n1)
+          rm -rf pkg && mkdir -p pkg/var/jb/Applications pkg/DEBIAN ipa-x
+          unzip -q "$IPA" -d ipa-x
+          APP=$(ls -d ipa-x/Payload/*.app | head -n1)
+          cp -a "$APP" pkg/var/jb/Applications/Reynard.app
+          SHORT=$(python3 - "$APP/Info.plist" <<'PY'
+          import plistlib, sys
+          print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleShortVersionString"])
+          PY
+          )
+          BASE="${SHORT%-dev}"
+          SIZE=$(du -sk pkg/var | cut -f1)
+          cat > pkg/DEBIAN/control <<CTL
+          Package: com.soum91.reynard
+          Name: Reynard Browser (Firefox Sync)
+          Version: ${BASE}.${BUILD}
+          Architecture: iphoneos-arm64
+          Description: Gecko-based browser for iOS with Firefox Account sign-in, Sync and Send Tab. Jailbroken build, installed unsandboxed under /var/jb/Applications.
+          Maintainer: soum91
+          Author: Minh Ton, Firefox Sync fork by soum91
+          Section: Networking
+          Installed-Size: ${SIZE}
+          Conflicts: com.minh-ton.reynard
+          CTL
+          # heredoc indentation inside YAML: strip the leading spaces
+          sed -i 's/^          //' pkg/DEBIAN/control
+          cat > pkg/DEBIAN/postinst <<'SH'
+          #!/bin/sh
+          UICACHE=/var/jb/usr/bin/uicache
+          [ -x "$UICACHE" ] || UICACHE=/usr/bin/uicache
+          if [ "${1:-configure}" = configure ] && [ -x "$UICACHE" ]; then
+              "$UICACHE" -p /var/jb/Applications/Reynard.app || true
+          fi
+          exit 0
+          SH
+          cat > pkg/DEBIAN/postrm <<'SH'
+          #!/bin/sh
+          UICACHE=/var/jb/usr/bin/uicache
+          [ -x "$UICACHE" ] || UICACHE=/usr/bin/uicache
+          if [ "$1" = remove ] || [ "$1" = purge ]; then
+              [ -x "$UICACHE" ] && "$UICACHE" -u /var/jb/Applications/Reynard.app || true
+          fi
+          exit 0
+          SH
+          sed -i 's/^          //' pkg/DEBIAN/postinst pkg/DEBIAN/postrm
+          chmod 755 pkg/DEBIAN/postinst pkg/DEBIAN/postrm
+          mkdir -p dist
+          OUT="dist/Reynard-${BASE}-build-${BUILD}.deb"
+          dpkg-deb --root-owner-group -Zgzip -b pkg "$OUT"
+          dpkg-deb --info "$OUT" | grep -E 'Package|Version|Installed'
+          ls -lh "$OUT"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Fetch previous packages
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: previous
+
+      - name: Generate Sileo repository
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq dpkg-dev
+          mkdir -p public/debs
+          cp previous/debs/*.deb public/debs/ 2>/dev/null || true
+          cp "$OUT" public/debs/
+          bash tweak/generate-repo.sh
+          ls -l public/debs
+
+      - name: Publish Sileo repository
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          force_orphan: true
