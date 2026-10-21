@@ -1,0 +1,118 @@
+name: Build WebKit Patch
+
+# WebKit Patch (Dopamine rootless .deb). Builds in a few minutes, no Gecko involved.
+
+on:
+  push:
+    paths:
+      - "tweak/WebKitPatch/**"
+      - ".github/workflows/webkitpatch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      THEOS: ${{ github.workspace }}/theos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: brew install ldid dpkg
+
+      - name: Install Theos and iOS SDK
+        run: |
+          git clone --depth 1 --recursive https://github.com/theos/theos.git "$THEOS"
+          git clone --depth 1 https://github.com/theos/sdks.git /tmp/theos-sdks
+          cp -R /tmp/theos-sdks/*.sdk "$THEOS/sdks/"
+
+      - name: Build tweak
+        id: build
+        run: |
+          set -o pipefail
+          make -C tweak/WebKitPatch clean package FINALPACKAGE=1 ARCHS=arm64 2>&1 | tee build.log
+
+      - name: Report compiler errors
+        if: failure()
+        run: |
+          grep -E 'error:|fatal error|undefined symbol|ld: ' build.log | head -30 | while IFS= read -r line; do
+            echo "::error::$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g' | cut -c1-400 | sed 's/%/%25/g')"
+          done
+
+      - name: Name the package with its build number
+        run: |
+          BASE=$(awk -F': ' '/^Version:/{print $2}' tweak/WebKitPatch/control)
+          DEB=$(find tweak/WebKitPatch/packages -name '*.deb' -print -quit)
+          test -n "$DEB"
+          VERSION="${BASE}.${GITHUB_RUN_NUMBER}"
+          # Sileo only offers an update when the package version goes up, so stamp the build in.
+          rm -rf /tmp/pkg && dpkg-deb -R "$DEB" /tmp/pkg
+          sed -i '' "s/^Version: .*/Version: ${VERSION}/" /tmp/pkg/DEBIAN/control
+          mkdir -p dist
+          OUT="dist/WebKitPatch-${BASE}-build-${GITHUB_RUN_NUMBER}.deb"
+          dpkg-deb --root-owner-group -b /tmp/pkg "$OUT"
+          dpkg-deb --info "$OUT" | grep -E 'Package|Version'
+          dpkg-deb --contents "$OUT"
+          echo "DEB=$OUT" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WebKitPatch-build-${{ github.run_number }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+      # Attach to the "tweak" release when it exists (create it once by hand: tag `tweak`).
+      - name: Attach to the tweak release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view webkitpatch >/dev/null 2>&1; then
+            PREV=$(gh release view webkitpatch --json body --jq .body | grep -o 'build [0-9]*' | head -1 | grep -o '[0-9]*' || true)
+            LOG=$(git log --no-merges --pretty='- %s' -15 -- tweak | sed 's/[`]//g')
+            printf 'Build %s\n\nChanges:\n%s\n' "$GITHUB_RUN_NUMBER" "$LOG" > notes.md
+            gh release upload webkitpatch "$DEB" --clobber
+            gh release edit webkitpatch --prerelease --notes-file notes.md
+          else
+            echo "No 'webkitpatch' release yet; the package is in the run's artifacts."
+          fi
+
+  # Sileo repository on the gh-pages branch (Settings > Pages > Deploy from branch: gh-pages).
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sileo-repo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch previous packages
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: previous
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: WebKitPatch-build-${{ github.run_number }}
+          path: new
+
+      - name: Generate Sileo repository
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq dpkg-dev
+          mkdir -p public/debs
+          cp previous/debs/*.deb public/debs/ 2>/dev/null || true
+          cp new/*.deb public/debs/
+          bash tweak/generate-repo.sh
+          ls -l public public/debs
+
+      - name: Publish Sileo repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tweak/publish-gh-pages.sh

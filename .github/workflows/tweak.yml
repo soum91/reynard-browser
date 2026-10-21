@@ -5,7 +5,8 @@ name: Build Tweak
 on:
   push:
     paths:
-      - "tweak/**"
+      - "tweak/ReynardDefault/**"
+      - "tweak/generate-repo.sh"
       - ".github/workflows/tweak.yml"
   workflow_dispatch:
 

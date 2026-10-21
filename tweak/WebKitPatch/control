@@ -1,0 +1,9 @@
+Package: com.soum91.webkitpatch
+Name: WebKit Patch
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Brings missing modern web features to the old system WebKit (JS polyfills, optional UA and feature flags) in Safari and apps (experimental)
+Maintainer: soum91
+Author: soum91
+Section: Tweaks
+Depends: ellekit
