@@ -127,9 +127,6 @@ jobs:
           ls -l public/debs
 
       - name: Publish Sileo repository
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-          publish_branch: gh-pages
-          force_orphan: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tweak/publish-gh-pages.sh
