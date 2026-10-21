@@ -1,0 +1,9 @@
+Package: com.soum91.reynarddefault
+Name: Reynard Default Browser
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Maintainer: soum91
+Author: soum91
+Section: Tweaks
+Depends: ellekit
