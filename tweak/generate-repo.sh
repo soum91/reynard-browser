@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a Sileo/APT repository (flat, rootless) in ./public from the .deb files in ./public/debs.
-# Keeps the 10 newest builds of each package (files are named <Name>-<version>-build-<N>.deb).
+# Keeps the 10 newest builds of each tweak and the 2 newest of the (large) app (files are named <Name>-<version>-build-<N>.deb).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 cd public
@@ -17,7 +17,8 @@ for deb in Path("debs").glob("*.deb"):
         groups[m["name"]].append((int(m["build"]), deb))
 for name, items in groups.items():
     items.sort()
-    for _, old in items[:-10]:
+    keep = 2 if name == "Reynard" else 10
+    for _, old in items[:-keep]:
         print("pruning", old.name)
         old.unlink()
 PY

@@ -105,9 +105,15 @@ jobs:
           chmod 755 pkg/DEBIAN/postinst pkg/DEBIAN/postrm
           mkdir -p dist
           OUT="dist/Reynard-${BASE}-build-${BUILD}.deb"
-          dpkg-deb --root-owner-group -Zgzip -b pkg "$OUT"
+          dpkg-deb --root-owner-group -Zxz -z9 -Sextreme -b pkg "$OUT"
           dpkg-deb --info "$OUT" | grep -E 'Package|Version|Installed'
           ls -lh "$OUT"
+          BYTES=$(stat -c %s "$OUT")
+          # GitHub rejects files over 100 MB on a branch, and the repo lives on gh-pages.
+          if [ "$BYTES" -gt 98000000 ]; then
+            echo "::error::$OUT is $((BYTES/1000000)) MB, over the 100 MB limit for gh-pages."
+            exit 1
+          fi
           echo "OUT=$OUT" >> "$GITHUB_ENV"
 
       - name: Fetch previous packages
