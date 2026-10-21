@@ -35,7 +35,7 @@ jobs:
         id: build
         run: |
           set -o pipefail
-          make -C tweak/WebKitPatch clean package FINALPACKAGE=1 ARCHS=arm64 2>&1 | tee build.log
+          make -C tweak/WebKitPatch clean package FINALPACKAGE=1 ARCHS="arm64 arm64e" 2>&1 | tee build.log
 
       - name: Report compiler errors
         if: failure()
