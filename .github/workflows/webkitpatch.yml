@@ -66,8 +66,8 @@ jobs:
           path: dist/*.deb
           if-no-files-found: error
 
-      # Attach to the "tweak" release when it exists (create it once by hand: tag `tweak`).
-      - name: Attach to the tweak release
+      # Attach to the "webkitpatch" release when it exists (create it once by hand: tag `webkitpatch`).
+      - name: Attach to the webkitpatch release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
