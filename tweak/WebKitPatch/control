@@ -6,4 +6,4 @@ Description: Brings missing modern web features to the old system WebKit (JS pol
 Maintainer: soum91
 Author: soum91
 Section: Tweaks
-Depends: ellekit
+Depends: ellekit, preferenceloader

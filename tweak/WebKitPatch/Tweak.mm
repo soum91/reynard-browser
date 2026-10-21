@@ -17,6 +17,8 @@
 
 namespace {
 
+// Settings made in the Settings app land in the legacy path (through cfprefsd); a hand-made plist
+// in the jailbreak root also works. Later entries win, so the Settings app takes precedence.
 static NSArray<NSString *> *prefsPaths() {
     return @[
         @"/var/jb/var/mobile/Library/Preferences/com.soum91.webkitpatch.plist",
@@ -39,11 +41,21 @@ static Settings loadSettings() {
     static Settings cached;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        NSMutableDictionary *prefs = [NSMutableDictionary dictionary];
         for (NSString *path in prefsPaths()) {
-            NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:path];
-            if (![prefs isKindOfClass:[NSDictionary class]]) {
-                continue;
+            NSDictionary *file = [NSDictionary dictionaryWithContentsOfFile:path];
+            if ([file isKindOfClass:[NSDictionary class]]) {
+                [prefs addEntriesFromDictionary:file];
             }
+        }
+        // cfprefsd works from sandboxed apps where reading the plist files directly may not.
+        for (NSString *key in @[@"enabled", @"polyfills", @"spoofUserAgent", @"safariVersion", @"enableFeatures", @"logFeatures", @"excludedApps", @"excludedHosts"]) {
+            CFPropertyListRef value = CFPreferencesCopyAppValue((__bridge CFStringRef)key, CFSTR("com.soum91.webkitpatch"));
+            if (value != NULL) {
+                prefs[key] = CFBridgingRelease(value);
+            }
+        }
+        {
             auto flag = [&](NSString *key, BOOL *out) {
                 id v = prefs[key];
                 if ([v isKindOfClass:[NSNumber class]]) {
@@ -67,7 +79,6 @@ static Settings loadSettings() {
             if ([version isKindOfClass:[NSString class]] && [version length] > 0) {
                 cached.safariVersion = version;
             }
-            break;
         }
     });
     return cached;

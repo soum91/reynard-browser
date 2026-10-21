@@ -20,6 +20,9 @@ new rendering or media features. Those need the engine itself.
 
 ## Settings
 
+Settings app > WebKit Patch (needs PreferenceLoader, pulled in as a dependency) has switches for the master
+switch, polyfills, the user agent option and the Safari version. The rest is plist-only.
+
 Plist at `/var/jb/var/mobile/Library/Preferences/com.soum91.webkitpatch.plist`:
 
 | key | default | meaning |

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key><string>PSGroupCell</string>
+			<key>label</key><string>General</string>
+			<key>footerText</key><string>Changes apply to web views created afterwards. Relaunch the app you are testing.</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSSwitchCell</string>
+			<key>defaults</key><string>com.soum91.webkitpatch</string>
+			<key>default</key><true/>
+			<key>key</key><string>enabled</string>
+			<key>label</key><string>Enabled</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSGroupCell</string>
+			<key>label</key><string>Features</string>
+			<key>footerText</key><string>Polyfills add JavaScript features that iOS 16.1 WebKit lacks. They only install when missing.</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSSwitchCell</string>
+			<key>defaults</key><string>com.soum91.webkitpatch</string>
+			<key>default</key><true/>
+			<key>key</key><string>polyfills</string>
+			<key>label</key><string>JavaScript polyfills</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSGroupCell</string>
+			<key>label</key><string>User agent</string>
+			<key>footerText</key><string>Advertise a newer Safari version. Some sites then send syntax this WebKit cannot parse, so only enable it when a site needs it.</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSSwitchCell</string>
+			<key>defaults</key><string>com.soum91.webkitpatch</string>
+			<key>default</key><false/>
+			<key>key</key><string>spoofUserAgent</string>
+			<key>label</key><string>Newer Safari version</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSEditTextCell</string>
+			<key>defaults</key><string>com.soum91.webkitpatch</string>
+			<key>default</key><string>17.6</string>
+			<key>key</key><string>safariVersion</string>
+			<key>label</key><string>Safari version</string>
+			<key>keyboard</key><string>numbers</string>
+		</dict>
+	</array>
+	<key>title</key><string>WebKit Patch</string>
+</dict>
+</plist>

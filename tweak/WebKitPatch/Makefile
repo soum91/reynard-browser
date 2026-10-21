@@ -9,3 +9,6 @@ WebKitPatch_CFLAGS = -fobjc-arc
 WebKitPatch_FRAMEWORKS = UIKit Foundation WebKit
 WebKitPatch_LIBRARIES = substrate
 include $(THEOS_MAKE_PATH)/tweak.mk
+
+SUBPROJECTS += prefs
+include $(THEOS_MAKE_PATH)/aggregate.mk
