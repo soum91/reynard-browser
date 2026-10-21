@@ -41,7 +41,7 @@ jobs:
         if: failure()
         run: |
           grep -E 'error:|fatal error|undefined symbol|ld: ' build.log | head -30 | while IFS= read -r line; do
-            echo "::error::$(echo "$line" | cut -c1-400 | sed 's/%/%25/g')"
+            echo "::error::$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g' | cut -c1-400 | sed 's/%/%25/g')"
           done
 
       - name: Name the package with its build number

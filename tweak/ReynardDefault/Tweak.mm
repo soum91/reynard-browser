@@ -13,10 +13,12 @@
 
 namespace {
 
-static NSString *const kPrefsPaths[] = {
-    @"/var/jb/var/mobile/Library/Preferences/com.soum91.reynarddefault.plist",
-    @"/var/mobile/Library/Preferences/com.soum91.reynarddefault.plist",
-};
+static NSArray<NSString *> *prefsPaths() {
+    return @[
+        @"/var/jb/var/mobile/Library/Preferences/com.soum91.reynarddefault.plist",
+        @"/var/mobile/Library/Preferences/com.soum91.reynarddefault.plist",
+    ];
+}
 static NSString *const kReynardBundleID = @"com.minh-ton.Reynard";
 
 // Sign-in pages stay in whatever opened them, because their redirects must come back to the app.
@@ -53,7 +55,7 @@ static Settings loadSettings() {
         return cached;
     }
     loadedAt = now;
-    for (NSString *path in kPrefsPaths) {
+    for (NSString *path in prefsPaths()) {
         NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:path];
         if (![prefs isKindOfClass:[NSDictionary class]]) {
             continue;
