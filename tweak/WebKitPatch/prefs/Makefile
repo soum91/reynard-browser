@@ -6,6 +6,6 @@ BUNDLE_NAME = WebKitPatchPrefs
 WebKitPatchPrefs_FILES = WKPRootListController.m
 WebKitPatchPrefs_INSTALL_PATH = /Library/PreferenceBundles
 WebKitPatchPrefs_FRAMEWORKS = UIKit
-WebKitPatchPrefs_PRIVATE_FRAMEWORKS = Preferences
 WebKitPatchPrefs_CFLAGS = -fobjc-arc
+WebKitPatchPrefs_LDFLAGS = -undefined dynamic_lookup
 include $(THEOS_MAKE_PATH)/bundle.mk
