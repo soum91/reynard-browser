@@ -46,12 +46,17 @@ jobs:
 
       - name: Name the package with its build number
         run: |
-          VERSION=$(awk -F': ' '/^Version:/{print $2}' tweak/ReynardDefault/control)
+          BASE=$(awk -F': ' '/^Version:/{print $2}' tweak/ReynardDefault/control)
           DEB=$(find tweak/ReynardDefault/packages -name '*.deb' -print -quit)
           test -n "$DEB"
+          VERSION="${BASE}.${GITHUB_RUN_NUMBER}"
+          # Sileo only offers an update when the package version goes up, so stamp the build in.
+          rm -rf /tmp/pkg && dpkg-deb -R "$DEB" /tmp/pkg
+          sed -i '' "s/^Version: .*/Version: ${VERSION}/" /tmp/pkg/DEBIAN/control
           mkdir -p dist
-          OUT="dist/ReynardDefault-${VERSION}-build-${GITHUB_RUN_NUMBER}.deb"
-          cp "$DEB" "$OUT"
+          OUT="dist/ReynardDefault-${BASE}-build-${GITHUB_RUN_NUMBER}.deb"
+          dpkg-deb --root-owner-group -b /tmp/pkg "$OUT"
+          dpkg-deb --info "$OUT" | grep -E 'Package|Version'
           dpkg-deb --contents "$OUT"
           echo "DEB=$OUT" >> "$GITHUB_ENV"
 
@@ -75,3 +80,30 @@ jobs:
           else
             echo "No 'tweak' release yet; the package is in the run's artifacts."
           fi
+
+      # Sileo repository on the gh-pages branch (Settings > Pages > Deploy from branch: gh-pages).
+      - name: Fetch previous packages
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: previous
+
+      - name: Generate Sileo repository
+        run: |
+          mkdir -p public/debs
+          cp previous/debs/*.deb public/debs/ 2>/dev/null || true
+          cp "$DEB" public/debs/
+          # Keep the 10 newest builds.
+          COUNT=$(ls -1 public/debs/*.deb | wc -l)
+          if [ "$COUNT" -gt 10 ]; then ls -1 public/debs/*.deb | sort -V | head -n $((COUNT-10)) | xargs rm -f; fi
+          bash tweak/generate-repo.sh
+          ls -l public public/debs
+
+      - name: Publish Sileo repository
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          force_orphan: true
