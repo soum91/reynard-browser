@@ -25,6 +25,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Toolchain versions GeckoView needs
+        run: |
+          META=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml)
+          GV=$(echo "$META" | grep -oP '<release>\K[^<]+')
+          curl -fsSL -o gv.aar "https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/$GV/geckoview-$GV.aar"
+          unzip -p gv.aar META-INF/com/android/build/gradle/aar-metadata.properties | tee aar.txt
+          AGP_ALL=$(curl -fsSL https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml | grep -oP '<version>\K[0-9.]+(?=</version>)' | sort -V | tail -5 | tr '\n' ' ')
+          KOTLIN=$(curl -fsSL https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml | grep -oP '<release>\K[^<]+')
+          GRADLE=$(curl -fsSL https://services.gradle.org/versions/current | grep -oP '"version" : "\K[^"]+')
+          echo "::notice::GeckoView $GV | $(tr '\n' ' ' < aar.txt) | AGP stable tail: $AGP_ALL | Kotlin $KOTLIN | Gradle $GRADLE"
+          rm -f gv.aar
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
