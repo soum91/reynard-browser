@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 // CI stamps the run number in, so every build installs over the previous one.
@@ -9,7 +8,12 @@ val keystorePath: String? = System.getenv("REYNARD_KEYSTORE")
 
 android {
     namespace = "com.soum91.reynardtv"
-    compileSdk = 36
+    // Current GeckoView requires compiling against Android 17 (API 37.2).
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "com.soum91.reynardtv"
@@ -52,10 +56,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     packaging {
