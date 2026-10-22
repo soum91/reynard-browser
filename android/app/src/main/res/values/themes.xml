@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Reynard" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">#FC3727</item>
+        <item name="colorAccent">#FC3727</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">#1B1B1D</item>
+        <item name="android:navigationBarColor">#1B1B1D</item>
+    </style>
+</resources>

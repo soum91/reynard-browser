@@ -1,0 +1,102 @@
+name: Build Android TV
+
+# Reynard for Android TV / Google TV (and phones): GeckoView app in android/.
+
+on:
+  push:
+    branches: [android-tv]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.REYNARD_TV_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.REYNARD_TV_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/reynard-tv.jks"
+            echo "REYNARD_KEYSTORE=$RUNNER_TEMP/reynard-tv.jks" >> "$GITHUB_ENV"
+            echo "REYNARD_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "Signing with the private release key."
+          else
+            echo "::warning::REYNARD_TV_KEYSTORE_B64 / REYNARD_TV_KEYSTORE_PASSWORD secrets not set; signing with the public test key."
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          REYNARD_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace assembleRelease 2>&1 | tee build.log
+
+      - name: Report errors
+        if: failure()
+        working-directory: android
+        run: |
+          grep -E '^e: |error:|FAILURE|What went wrong|Could not' build.log | head -40 | while IFS= read -r line; do
+            echo "::error::$(echo "$line" | sed 's#file:///home/runner/work/reynard-browser/reynard-browser/##' | cut -c1-500 | sed 's/%/%25/g')"
+          done
+          grep -A12 'What went wrong' build.log | head -40 | while IFS= read -r line; do
+            echo "::error::$(echo "$line" | cut -c1-500 | sed 's/%/%25/g')"
+          done
+
+      - name: Name the APK with its build number
+        working-directory: android
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          GECKO=$(gradle --no-daemon -q :app:dependencies --configuration releaseRuntimeClasspath 2>/dev/null | grep -oP 'org.mozilla.geckoview:geckoview:\+ -> \K[0-9.]+' | head -1)
+          echo "GeckoView: ${GECKO:-unknown}" | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir -p ../dist
+          OUT="../dist/Reynard-TV-${VERSION}-build-${GITHUB_RUN_NUMBER}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$OUT"
+          ls -l ../dist
+          echo "APK=dist/$(basename "$OUT")" >> "$GITHUB_ENV"
+          echo "GECKO=${GECKO:-unknown}" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reynard-TV-build-${{ github.run_number }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Attach to the "android-tv" release when it exists (create it once by hand: tag `android-tv`).
+      - name: Attach to the android-tv release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view android-tv >/dev/null 2>&1; then
+            LOG=$(git log --no-merges --pretty='- %s' -20 -- android | sed 's/[`]//g')
+            printf 'Reynard TV %s, build %s (GeckoView %s)\n\nChanges:\n%s\n' "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$GECKO" "$LOG" > notes.md
+            gh release upload android-tv "$APK" --clobber
+            gh release edit android-tv --prerelease --notes-file notes.md
+          else
+            echo "No 'android-tv' release yet; the APK is in the run's artifacts."
+          fi
