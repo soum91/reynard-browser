@@ -1,0 +1,12 @@
+Origin: Reynard (soum91)
+Label: Reynard (soum91)
+Suite: stable
+Codename: ios
+Version: 1.0
+Architectures: iphoneos-arm64
+Components: main
+Description: Reynard browser (Firefox Sync fork) and its tweaks, for Dopamine rootless
+Date: Thu, 22 Oct 2026 22:15:12 +0000
+SHA256:
+ e2c894ad8cf3a901868763a30d67f8b6fbb71fcab430288ded1a9f570781dfe1 7603 Packages
+ c0ee52900bd43d1138df4e3cb7566e16c8748ae714d88aa2577625bbabdfcd01 2043 Packages.gz

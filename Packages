@@ -1,0 +1,224 @@
+Package: com.soum91.reynard
+Version: 0.18.0.18
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 314220
+Conflicts: com.minh-ton.reynard
+Filename: debs/Reynard-0.18.0-build-18.deb
+Size: 70117664
+MD5sum: 613770aaa12408273defccc93440f1fa
+SHA1: 9e47c4249cd7d63212bbc91e72bdea664a64edd5
+SHA256: 6725987fe071d7d8115bb480ee68c80b8377ee4bf4310e02cf7d806b78749120
+Section: Networking
+Description: Gecko-based browser for iOS with Firefox Account sign-in, Sync and Send Tab. Jailbroken build, installed unsandboxed under /var/jb/Applications.
+Author: Minh Ton, Firefox Sync fork by soum91
+Name: Reynard Browser (Firefox Sync)
+
+Package: com.soum91.reynard
+Version: 0.18.0.22
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 314376
+Conflicts: com.minh-ton.reynard
+Filename: debs/Reynard-0.18.0-build-22.deb
+Size: 70150300
+MD5sum: 7ed6023359d1bd9a49c9890afb94f417
+SHA1: b3c7ea6e877c61be627337e01eef304fd0bd2efb
+SHA256: d8e3066e61769085a5b9906b3dc6b28017d7b72903b80b4fc137b7a6b849695c
+Section: Networking
+Description: Gecko-based browser for iOS with Firefox Account sign-in, Sync and Send Tab. Jailbroken build, installed unsandboxed under /var/jb/Applications.
+Author: Minh Ton, Firefox Sync fork by soum91
+Name: Reynard Browser (Firefox Sync)
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.10
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-10.deb
+Size: 7480
+MD5sum: baebe350102848b9f720249858fce1c0
+SHA1: 18b3dae79cf252273ac8ade7fbcf8e957f38529a
+SHA256: 2b689f0f89e05341e0a3e6afe2d6222f2936b6c36e7d9bcafab81136f638bb47
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.11
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-11.deb
+Size: 7484
+MD5sum: 328b3c40bd233d75d65d41047a8c5881
+SHA1: ca36e4955c83b097745053b2b68cd55d9b897c19
+SHA256: 3637ab29466d9ad26b42d5b1e73369b6b00b0de1e4ceb1d9a6eadbc1ca714bbf
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.12
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 172
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-12.deb
+Size: 10064
+MD5sum: 8ed977595a34c9915d63f735b7681690
+SHA1: b7c871fd444c36ba15c46cb6ea56ad84a78bb2a8
+SHA256: 9bc6eb337b831f663b92eb6d76969242f59ffdaca7e138f740ecffbf2edc0b43
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.3
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-3.deb
+Size: 7484
+MD5sum: bd84ffdc4d311b3c028e4830338f57c8
+SHA1: 83ac8993e888b0053bd70e07c9e2dcbbd8fea3f3
+SHA256: 443f08769a15ca83474cb3717e6efde259cb6f64ff6b91cdd1e89b8953819c63
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.4
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-4.deb
+Size: 7480
+MD5sum: aab895927da47d033a6037f9ed5455ca
+SHA1: ded134bf8142fafed91b7dce0d9a25a39a24d15e
+SHA256: 2c8bbec20924426740a017586b2377d9a53fe90a73a53a7b32e410059e8e99a0
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.5
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-5.deb
+Size: 7484
+MD5sum: 641609af5e2a33129585cce751df96e8
+SHA1: bc1dc6918ceacf7b606b4de4acfbb6aaeace9a52
+SHA256: 6566daf60c34e688b63bef481a5fda4a8523dd9c6c3a645b0016b2128c99a835
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.8
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-8.deb
+Size: 7472
+MD5sum: 8a0e903b8dc207c6b2b6619721ba6e67
+SHA1: a0e09292e08641f922783375363adccee6d930af
+SHA256: 0c3f7875d9c9f7b73fd9835af1b6ae8341baeb640a1659931c93349e84465256
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.reynarddefault
+Version: 0.1.0.9
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 76
+Depends: ellekit
+Filename: debs/ReynardDefault-0.1.0-build-9.deb
+Size: 7484
+MD5sum: f6b293d6e425ee77281f92e7cec88cec
+SHA1: c71a60ae20cc83ab21f14f377d626c2fc91bba41
+SHA256: 2090a7b49a103527e02e47a0c6ca8b42369fb895ddf3ba777a77b6493c25500e
+Section: Tweaks
+Description: Opens web links from other apps in Reynard instead of Safari (experimental)
+Author: soum91
+Name: Reynard Default Browser
+
+Package: com.soum91.webkitpatch
+Version: 0.1.0.4
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 108
+Depends: ellekit
+Filename: debs/WebKitPatch-0.1.0-build-4.deb
+Size: 9428
+MD5sum: 8675a89a941957d51f4789fba12ee380
+SHA1: 26888e8db82fd2e93fe815df431713661c13d79e
+SHA256: a624f69448da1b1fe67c9eff366822ed180b9f3f86d85d4c0939b6be028ddf68
+Section: Tweaks
+Description: Brings missing modern web features to the old system WebKit (JS polyfills, optional UA and feature flags) in Safari and apps (experimental)
+Author: soum91
+Name: WebKit Patch
+
+Package: com.soum91.webkitpatch
+Version: 0.1.0.6
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 188
+Depends: ellekit, preferenceloader
+Filename: debs/WebKitPatch-0.1.0-build-6.deb
+Size: 11980
+MD5sum: de633a3ca5ece80248077d4e84a42c6d
+SHA1: 83ccf931d744b6a76c6c7d9d6dc681c5bacd283e
+SHA256: 9911900454001b13b8971eb7557a9b66dc890621ea2e04d94a9ac350011e6c18
+Section: Tweaks
+Description: Brings missing modern web features to the old system WebKit (JS polyfills, optional UA and feature flags) in Safari and apps (experimental)
+Author: soum91
+Name: WebKit Patch
+
+Package: com.soum91.webkitpatch
+Version: 0.1.0.7
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 188
+Depends: ellekit, preferenceloader
+Filename: debs/WebKitPatch-0.1.0-build-7.deb
+Size: 11976
+MD5sum: 4216a5bd5a31fc820f761accc76185ae
+SHA1: 3bf4e16f3f9968080686104cc7b1bd59d693a95e
+SHA256: 9e3ba616191f12cebe7c79415303d042855d29cd578c7608accd6aa621956908
+Section: Tweaks
+Description: Brings missing modern web features to the old system WebKit (JS polyfills, optional UA and feature flags) in Safari and apps (experimental)
+Author: soum91
+Name: WebKit Patch
+
+Package: com.soum91.webkitpatch
+Version: 0.1.0.8
+Architecture: iphoneos-arm64
+Maintainer: soum91
+Installed-Size: 412
+Depends: ellekit, preferenceloader
+Filename: debs/WebKitPatch-0.1.0-build-8.deb
+Size: 14900
+MD5sum: b106d4e8c8c415246f7940da21bd4ffb
+SHA1: 17947e625b86b56f7c249596b82258f82ae36369
+SHA256: d981ce6d78149ea095295bc1d9a3f6389d51240fbb6035d2dbeb9a31defb2765
+Section: Tweaks
+Description: Brings missing modern web features to the old system WebKit (JS polyfills, optional UA and feature flags) in Safari and apps (experimental)
+Author: soum91
+Name: WebKit Patch
+
