@@ -167,6 +167,7 @@ enum SyncPreferences {
         case tabs
         case history
         case bookmarks
+        case passwords
     }
 
     static func isEnabled(_ engine: Engine) -> Bool {

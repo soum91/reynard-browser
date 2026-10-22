@@ -7,6 +7,7 @@
 //  - tabs:      uploads open tabs, downloads other devices' tabs
 //  - history:   two-way (download + merge, upload new local visits; never deletes)
 //  - bookmarks: one-way mirror of your Firefox bookmarks into a "Firefox Bookmarks" folder
+//  - passwords: one-way download into the Keychain, offered to iOS by the AutoFill extension
 //
 
 import Foundation
@@ -136,6 +137,7 @@ final class SyncManager {
         remoteClients = []
         SyncMetadataStore.shared.reset()
         BookmarkStore.shared.removeSyncedBookmarks()
+        Self.removeSyncedPasswords()
         NotificationCenter.default.post(name: .syncedTabsDidChange, object: self)
         postStatus()
     }
@@ -174,6 +176,11 @@ final class SyncManager {
             if SyncPreferences.isEnabled(.bookmarks) {
                 await run(NSLocalizedString("Bookmarks", comment: "")) {
                     try await self.syncBookmarks(client: client, keys: keys, info: info)
+                }
+            }
+            if SyncPreferences.isEnabled(.passwords) {
+                await run(NSLocalizedString("Passwords", comment: "")) {
+                    try await self.syncPasswords(client: client, keys: keys, info: info)
                 }
             }
 
@@ -578,6 +585,77 @@ final class SyncManager {
         if didReplace {
             SyncPreferences.setLastModified(max(result.lastModified, serverModified), for: "bookmarks")
         }
+    }
+
+    // MARK: - Passwords (download only)
+
+    enum PasswordsError: LocalizedError {
+        case keychainUnavailable
+
+        var errorDescription: String? {
+            NSLocalizedString("This build can't use the Keychain, so passwords aren't stored.", comment: "")
+        }
+    }
+
+    /// Removes downloaded passwords from the Keychain and from iOS AutoFill suggestions.
+    static func removeSyncedPasswords() {
+        SyncedLoginStore.clear()
+        SyncPreferences.setLastModified(0, for: "passwords")
+        Task {
+            await SyncedLoginIdentities.removeAll()
+        }
+    }
+
+    private func syncPasswords(client: SyncStorageClient, keys: CollectionKeys, info: [String: Double]) async throws {
+        guard let serverModified = info["passwords"] else {
+            return
+        }
+        let lastModified = SyncPreferences.lastModified("passwords")
+        let stored = SyncedLoginStore.load()
+        // An empty store with bookkeeping means the Keychain item is gone; download everything.
+        let fullSync = lastModified == 0 || stored.isEmpty
+        guard fullSync || serverModified > lastModified else {
+            return
+        }
+
+        let result = try await client.getCollection(
+            "passwords",
+            newer: fullSync ? nil : lastModified,
+            pageSize: 1_000,
+            maxRecords: 20_000
+        )
+        let decrypted = await Self.decrypt(result.records, with: keys.bundle(for: "passwords"))
+
+        var byID: [String: SyncedLogin] = [:]
+        if !fullSync {
+            for login in stored {
+                byID[login.id] = login
+            }
+        }
+        for (bso, json) in decrypted {
+            guard json["deleted"] as? Bool != true,
+                  let origin = json["hostname"] as? String,
+                  origin.hasPrefix("http://") || origin.hasPrefix("https://"),
+                  let password = json["password"] as? String,
+                  !password.isEmpty else {
+                byID[bso.id] = nil
+                continue
+            }
+            byID[bso.id] = SyncedLogin(
+                id: bso.id,
+                origin: origin,
+                username: json["username"] as? String ?? "",
+                password: password,
+                changed: (json["timePasswordChanged"] as? NSNumber)?.doubleValue ?? 0
+            )
+        }
+
+        let logins = byID.values.sorted { ($0.host, $0.username) < ($1.host, $1.username) }
+        guard SyncedLoginStore.save(logins) else {
+            throw PasswordsError.keychainUnavailable
+        }
+        SyncPreferences.setLastModified(max(result.lastModified, serverModified), for: "passwords")
+        await SyncedLoginIdentities.update(with: logins)
     }
 
     // MARK: - Helpers
