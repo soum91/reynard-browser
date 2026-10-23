@@ -4,6 +4,10 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
+import android.text.TextUtils
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -18,7 +22,8 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.Button
+import android.widget.HorizontalScrollView
+import android.widget.TextView
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -43,12 +48,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var geckoView: GeckoView
     private lateinit var cursor: CursorView
     private lateinit var toolbar: LinearLayout
+    private lateinit var actionsRow: LinearLayout
+    private lateinit var tabStrip: LinearLayout
+    private lateinit var tabScroller: HorizontalScrollView
     private lateinit var urlField: EditText
-    private lateinit var bookmarkButton: Button
-    private lateinit var desktopButton: Button
+    private lateinit var backButton: TextView
+    private lateinit var forwardButton: TextView
+    private lateinit var bookmarkButton: TextView
+    private lateinit var desktopButton: TextView
+    private lateinit var menuButton: TextView
     private lateinit var progress: ProgressBar
     private lateinit var session: GeckoSession
     private lateinit var bookmarks: Bookmarks
+
+    private data class BrowserTab(
+        val session: GeckoSession,
+        var title: String = "New tab",
+        var url: String = "",
+        var canGoBack: Boolean = false,
+        var canGoForward: Boolean = false,
+    )
+
+    private val tabs = mutableListOf<BrowserTab>()
+    private var activeTabIndex = -1
 
     private val prefs by lazy { getSharedPreferences("browser", Context.MODE_PRIVATE) }
 
@@ -112,35 +134,86 @@ class MainActivity : AppCompatActivity() {
         TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics
     ).toInt()
 
+    private fun roundedBackground(color: Int, radius: Int = 12) =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+        }
+
+    private fun focusBackground(base: Int = Color.rgb(49, 42, 66)): StateListDrawable =
+        StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), roundedBackground(Color.rgb(102, 69, 169)))
+            addState(intArrayOf(android.R.attr.state_pressed), roundedBackground(Color.rgb(102, 69, 169)))
+            addState(intArrayOf(), roundedBackground(base))
+        }
+
+    private fun chromeButton(label: String, description: String, action: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            contentDescription = description
+            setTextColor(Color.rgb(247, 246, 255))
+            textSize = if (isTv) 23f else 19f
+            gravity = Gravity.CENTER
+            minWidth = dp(if (isTv) 54 else 44)
+            maxLines = 1
+            isFocusable = true
+            isClickable = true
+            background = focusBackground()
+            setOnClickListener { action() }
+            layoutParams = LinearLayout.LayoutParams(
+                dp(if (isTv) 54 else 44),
+                dp(if (isTv) 52 else 46)
+            ).apply { marginEnd = dp(5) }
+        }
+
     private fun buildLayout() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(Color.rgb(18, 16, 27))
         }
 
         toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(32, 26, 49))
+            setPadding(dp(12), dp(8), dp(12), dp(10))
+            elevation = dp(5).toFloat()
+        }
+
+        // TV's two-row chrome uses the same real tabs as the phone layout.
+        tabStrip = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.rgb(27, 27, 29))
-            setPadding(dp(6), dp(4), dp(6), dp(4))
+        }
+        tabScroller = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+            addView(tabStrip)
+        }
+        toolbar.addView(
+            tabScroller,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (isTv) 48 else 42))
+        )
+
+        actionsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
 
-        fun toolButton(label: String, action: () -> Unit) = Button(this).apply {
-            text = label
-            isAllCaps = false
-            textSize = if (isTv) 18f else 16f
-            minWidth = dp(48)
-            setOnClickListener { action() }
-        }
-
-        toolbar.addView(toolButton("◀") { if (canGoBack) session.goBack() })
-        toolbar.addView(toolButton("▶") { if (canGoForward) session.goForward() })
-        toolbar.addView(toolButton("⟳") { session.reload() })
-        toolbar.addView(toolButton("⌂") { load(HOME_URL) })
+        backButton = chromeButton("‹", "Go back") { if (canGoBack) session.goBack() }
+        forwardButton = chromeButton("›", "Go forward") { if (canGoForward) session.goForward() }
+        actionsRow.addView(backButton)
+        actionsRow.addView(forwardButton)
+        actionsRow.addView(chromeButton("⟳", "Reload page") { session.reload() })
+        actionsRow.addView(chromeButton("⌂", "Home") { load(HOME_URL) })
 
         urlField = EditText(this).apply {
             setSingleLine()
             hint = "Search or enter address"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(170, 164, 186))
+            textSize = if (isTv) 18f else 16f
+            background = focusBackground(Color.rgb(47, 40, 64))
+            setPadding(dp(18), 0, dp(18), 0)
             imeOptions = EditorInfo.IME_ACTION_GO
             inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_URI
             setSelectAllOnFocus(true)
@@ -155,19 +228,26 @@ class MainActivity : AppCompatActivity() {
                 submitted
             }
         }
-        toolbar.addView(urlField, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        actionsRow.addView(urlField, LinearLayout.LayoutParams(0, dp(if (isTv) 52 else 46), 1f).apply {
+            marginEnd = dp(7)
+        })
 
-        bookmarkButton = toolButton("☆") {
-            bookmarks.toggle(currentTitle, currentUrl)
-            updateBookmarkButton()
+        bookmarkButton = chromeButton("☆", "Bookmark page") {
+            if (currentUrl.isNotBlank()) {
+                bookmarks.toggle(currentTitle, currentUrl)
+                updateBookmarkButton()
+            }
         }
-        toolbar.addView(bookmarkButton)
-        toolbar.addView(toolButton("☰") { showBookmarks() })
-        desktopButton = toolButton("") { toggleDesktopMode() }
-        toolbar.addView(desktopButton)
+        actionsRow.addView(bookmarkButton)
+        desktopButton = chromeButton("▣", "Desktop or mobile site") { toggleDesktopMode() }
+        actionsRow.addView(desktopButton)
+        menuButton = chromeButton("☰", "Browser menu") { showBrowserMenu() }
+        actionsRow.addView(menuButton)
+        toolbar.addView(actionsRow)
 
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
+            progressTintList = ColorStateList.valueOf(Color.rgb(255, 113, 57))
             visibility = View.GONE
         }
 
@@ -176,16 +256,23 @@ class MainActivity : AppCompatActivity() {
             isFocusable = true
             isFocusableInTouchMode = true
         }
-        cursor = CursorView(this).apply { visibility = if (cursorMode) View.VISIBLE else View.GONE }
-        content.addView(geckoView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        content.addView(cursor, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-
-        root.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        cursor = CursorView(this).apply {
+            visibility = if (cursorMode) View.VISIBLE else View.GONE
+        }
+        content.addView(
+            geckoView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        content.addView(
+            cursor,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        root.addView(toolbar)
         root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)))
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
-        // A touch means a person with a touchscreen: drop the remote pointer.
+        // Keep touch input native on phones; the D-pad pointer is only needed with a remote.
         geckoView.setOnTouchListener { _, event ->
             if (event.source and InputDevice.SOURCE_TOUCHSCREEN != 0 && cursorMode && !isTv) {
                 setCursorMode(false)
@@ -194,44 +281,173 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun renderTabs() {
+        if (!::tabStrip.isInitialized) return
+        val hadFocus = tabStrip.findFocus() != null
+        tabStrip.removeAllViews()
+        tabs.forEachIndexed { index, tab ->
+            val active = index == activeTabIndex
+            val title = tab.title.ifBlank { "New tab" }
+            val tabButton = chromeButton((if (active) "●  " else "○  ") + title, "Switch to " + title) {
+                selectTab(index)
+                if (isTv) hideToolbar()
+            }.apply {
+                textSize = if (isTv) 15f else 13f
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                setPadding(dp(15), 0, dp(8), 0)
+                maxWidth = dp(if (isTv) 250 else 170)
+                minWidth = dp(if (isTv) 150 else 105)
+                ellipsize = TextUtils.TruncateAt.END
+                background = focusBackground(
+                    if (active) Color.rgb(76, 57, 116) else Color.rgb(43, 37, 59)
+                )
+                layoutParams = LinearLayout.LayoutParams(
+                    dp(if (isTv) 210 else 142),
+                    dp(if (isTv) 43 else 38)
+                ).apply { marginEnd = dp(2) }
+                setOnLongClickListener {
+                    closeTab(index)
+                    true
+                }
+            }
+            tabStrip.addView(tabButton)
+            tabStrip.addView(chromeButton("×", "Close " + title) {
+                closeTab(index)
+            }.apply {
+                textSize = 21f
+                layoutParams = LinearLayout.LayoutParams(dp(38), dp(if (isTv) 43 else 38))
+                    .apply { marginEnd = dp(8) }
+            })
+        }
+        tabStrip.addView(chromeButton("+", "New tab") {
+            openTab(HOME_URL)
+            if (isTv) showToolbar(focusUrl = true)
+        }.apply { textSize = 24f })
+
+        // Rebuilding the strip must not strand keyboard/remote focus.
+        if (hadFocus && activeTabIndex >= 0) {
+            tabStrip.getChildAt(activeTabIndex * 2)?.requestFocus()
+        }
+    }
+
+    private fun updateNavigationButtons() {
+        if (!::backButton.isInitialized) return
+        backButton.isEnabled = canGoBack
+        forwardButton.isEnabled = canGoForward
+        backButton.alpha = if (canGoBack) 1f else 0.4f
+        forwardButton.alpha = if (canGoForward) 1f else 0.4f
+    }
+
     // MARK: - Session
 
     private val desktopMode: Boolean
         get() = prefs.getBoolean("desktopMode", isTv)
 
-    private fun createSession() {
+    private fun newGeckoSession(): GeckoSession {
         val settings = GeckoSessionSettings.Builder()
             .usePrivateMode(false)
             .useTrackingProtection(true)
-            .userAgentMode(if (desktopMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE)
-            .viewportMode(if (desktopMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE)
+            .userAgentMode(
+                if (desktopMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
+                else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+            )
+            .viewportMode(
+                if (desktopMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP
+                else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
+            )
             .build()
-        session = GeckoSession(settings)
-        session.navigationDelegate = navigationDelegate
-        session.progressDelegate = progressDelegate
-        session.contentDelegate = contentDelegate
-        session.permissionDelegate = permissionDelegate
-        session.promptDelegate = Prompts(this)
-        session.open((application as ReynardApp).runtime)
-        geckoView.setSession(session)
+        return GeckoSession(settings).apply {
+            navigationDelegate = this@MainActivity.navigationDelegate
+            progressDelegate = this@MainActivity.progressDelegate
+            contentDelegate = this@MainActivity.contentDelegate
+            permissionDelegate = this@MainActivity.permissionDelegate
+            promptDelegate = Prompts(this@MainActivity)
+            open((application as ReynardApp).runtime)
+        }
+    }
+
+    private fun createSession() {
+        openTab()
         updateDesktopButton()
+    }
+
+    private fun openTab(url: String? = null): GeckoSession {
+        val newSession = newGeckoSession()
+        tabs.add(BrowserTab(newSession))
+        selectTab(tabs.lastIndex)
+        url?.let { newSession.loadUri(it) }
+        return newSession
+    }
+
+    private fun selectTab(index: Int) {
+        if (index !in tabs.indices) return
+        if (index == activeTabIndex) return
+        if (activeTabIndex >= 0 && ::session.isInitialized) {
+            geckoView.releaseSession()
+            session.setActive(false)
+        }
+        activeTabIndex = index
+        val tab = tabs[index]
+        session = tab.session
+        geckoView.setSession(session)
+        session.setActive(true)
+        currentUrl = tab.url
+        currentTitle = tab.title
+        canGoBack = tab.canGoBack
+        canGoForward = tab.canGoForward
+        urlField.setText(currentUrl)
+        updateNavigationButtons()
+        updateBookmarkButton()
+        renderTabs()
+        geckoView.requestFocus()
+    }
+
+    private fun closeTab(index: Int) {
+        if (index !in tabs.indices) return
+        if (tabs.size == 1) {
+            load(HOME_URL)
+            if (isTv) hideToolbar()
+            return
+        }
+        val removed = tabs[index]
+        val wasActive = index == activeTabIndex
+        if (wasActive) {
+            geckoView.releaseSession()
+            removed.session.setActive(false)
+        }
+        tabs.removeAt(index)
+        removed.session.close()
+        if (wasActive) {
+            activeTabIndex = -1
+            selectTab(index.coerceAtMost(tabs.lastIndex))
+        } else {
+            if (index < activeTabIndex) activeTabIndex--
+            renderTabs()
+        }
     }
 
     private fun toggleDesktopMode() {
         val enabled = !desktopMode
         prefs.edit().putBoolean("desktopMode", enabled).apply()
-        session.settings.userAgentMode = if (enabled) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
-        session.settings.viewportMode = if (enabled) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
+        tabs.forEach { tab ->
+            tab.session.settings.userAgentMode =
+                if (enabled) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
+                else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+            tab.session.settings.viewportMode =
+                if (enabled) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP
+                else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
+        }
         updateDesktopButton()
         session.reload()
     }
 
     private fun updateDesktopButton() {
-        desktopButton.text = if (desktopMode) "🖥" else "📱"
+        desktopButton.text = if (desktopMode) "▣" else "▤"
+        desktopButton.contentDescription = if (desktopMode) "Desktop site enabled" else "Mobile site enabled"
     }
 
     private fun updateBookmarkButton() {
-        bookmarkButton.text = if (bookmarks.contains(currentUrl)) "★" else "☆"
+        bookmarkButton.text = if (currentUrl.isNotBlank() && bookmarks.contains(currentUrl)) "★" else "☆"
     }
 
     private fun load(input: String) {
@@ -254,23 +470,34 @@ class MainActivity : AppCompatActivity() {
             perms: List<ContentPermission>,
             hasUserGesture: Boolean,
         ) {
-            currentUrl = url ?: ""
-            if (!urlField.hasFocus()) urlField.setText(currentUrl)
-            updateBookmarkButton()
+            val tab = tabs.firstOrNull { it.session === session } ?: return
+            tab.url = url ?: ""
+            if (session === this@MainActivity.session) {
+                currentUrl = tab.url
+                if (!urlField.hasFocus()) urlField.setText(currentUrl)
+                updateBookmarkButton()
+            }
         }
 
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
-            this@MainActivity.canGoBack = canGoBack
+            tabs.firstOrNull { it.session === session }?.canGoBack = canGoBack
+            if (session === this@MainActivity.session) {
+                this@MainActivity.canGoBack = canGoBack
+                updateNavigationButtons()
+            }
         }
 
         override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) {
-            this@MainActivity.canGoForward = canGoForward
+            tabs.firstOrNull { it.session === session }?.canGoForward = canGoForward
+            if (session === this@MainActivity.session) {
+                this@MainActivity.canGoForward = canGoForward
+                updateNavigationButtons()
+            }
         }
 
-        // One tab for now: links that want a new window open here.
+        // GeckoView requires a fresh session for a new window. It loads the URI itself.
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            session.loadUri(uri)
-            return null
+            return GeckoResult.fromValue(openTab())
         }
 
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
@@ -293,6 +520,7 @@ class MainActivity : AppCompatActivity() {
 
     private val progressDelegate = object : GeckoSession.ProgressDelegate {
         override fun onProgressChange(session: GeckoSession, progressValue: Int) {
+            if (session !== this@MainActivity.session) return
             progress.progress = progressValue
             progress.visibility = if (progressValue in 1..99) View.VISIBLE else View.GONE
         }
@@ -300,10 +528,14 @@ class MainActivity : AppCompatActivity() {
 
     private val contentDelegate = object : GeckoSession.ContentDelegate {
         override fun onTitleChange(session: GeckoSession, title: String?) {
-            currentTitle = title ?: ""
+            val tab = tabs.firstOrNull { it.session === session } ?: return
+            tab.title = title?.ifBlank { "New tab" } ?: "New tab"
+            if (session === this@MainActivity.session) currentTitle = tab.title
+            renderTabs()
         }
 
         override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
+            if (session !== this@MainActivity.session) return
             isFullScreen = fullScreen
             val controller = WindowCompat.getInsetsController(window, window.decorView)
             if (fullScreen) {
@@ -340,7 +572,7 @@ class MainActivity : AppCompatActivity() {
         if (focusUrl) {
             urlField.requestFocus()
         } else {
-            toolbar.getChildAt(0).requestFocus()
+            menuButton.requestFocus()
         }
     }
 
@@ -352,6 +584,47 @@ class MainActivity : AppCompatActivity() {
 
     private val toolbarHasFocus: Boolean
         get() = toolbar.visibility == View.VISIBLE && toolbar.findFocus() != null
+
+    private fun showBrowserMenu() {
+        val choices = arrayOf(
+            "＋  New tab",
+            "▣  Tabs (" + tabs.size + ")",
+            "☆  Bookmarks",
+            "⌂  Home",
+            "⟳  Reload",
+            if (desktopMode) "▤  Request mobile site" else "▣  Request desktop site",
+            "×  Close current tab"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Reynard")
+            .setItems(choices) { _, choice ->
+                when (choice) {
+                    0 -> { openTab(HOME_URL); if (isTv) showToolbar(focusUrl = true) }
+                    1 -> showTabPicker()
+                    2 -> showBookmarks()
+                    3 -> { load(HOME_URL); if (isTv) hideToolbar() }
+                    4 -> { session.reload(); if (isTv) hideToolbar() }
+                    5 -> { toggleDesktopMode(); if (isTv) hideToolbar() }
+                    6 -> closeTab(activeTabIndex)
+                }
+            }
+            .show()
+    }
+
+    private fun showTabPicker() {
+        val labels = tabs.mapIndexed { i, tab ->
+            (if (i == activeTabIndex) "●  " else "○  ") + tab.title
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Open tabs")
+            .setItems(labels) { _, which ->
+                selectTab(which)
+                if (isTv) hideToolbar()
+            }
+            .setPositiveButton("New tab") { _, _ -> openTab(HOME_URL) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
 
     private fun showBookmarks() {
         val items = bookmarks.all()
@@ -398,7 +671,9 @@ class MainActivity : AppCompatActivity() {
 
         // While the toolbar (or a dialog) has focus, the D-pad moves between buttons as usual.
         if (toolbarHasFocus) {
-            if (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && isTv) {
+            if (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN &&
+                isTv && actionsRow.findFocus() != null
+            ) {
                 hideToolbar()
                 return true
             }
