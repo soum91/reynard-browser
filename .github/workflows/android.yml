@@ -1,4 +1,5 @@
 name: Build Android TV
+# CI trigger: rebuild Android TV after the Reynard GeckoView UI update.
 
 # Reynard for Android TV / Google TV (and phones): GeckoView app in android/.
 
