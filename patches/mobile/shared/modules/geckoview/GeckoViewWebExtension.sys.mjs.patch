@@ -61,7 +61,7 @@ index 2f2120d22694..b71d95e2c7bd 100644
 +    const isAndroidResource =
 +      uri.scheme === "resource" && uri.host === "android";
 +    const isIOSBuiltInResource =
-+      /^resource:\/\/app\/extensions\/(readerview|fxawebchannel)\/$/.test(uri.spec);
++      /^resource:\/\/app\/extensions\/(readerview|fxawebchannel|fetchdock)\/$/.test(uri.spec);
 +    if (!isAndroidResource && !isIOSBuiltInResource) {
 +      aCallback.onError(
 +        `Only resource://android/... URIs are allowed.`

@@ -3,6 +3,11 @@ name: Build Reynard
 on:
   workflow_call:
     inputs:
+      build_bundled_companion:
+        description: Build the fork's bundled FetchDock companion
+        required: false
+        default: false
+        type: boolean
       checkout_ref:
         description: Git ref to build
         required: true
@@ -33,7 +38,7 @@ permissions:
 
 jobs:
   prepare:
-    if: ${{ github.repository_owner == 'minh-ton' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.repository_owner == 'minh-ton' || github.event_name == 'workflow_dispatch' || inputs.build_bundled_companion }}
     name: Select build variants
     runs-on: ubuntu-latest
     outputs:
@@ -115,6 +120,10 @@ jobs:
 
       - name: Update Gecko source
         run: ./tools/development/update-gecko.sh
+
+      - name: Generate bundled FetchDock patches
+        if: inputs.build_bundled_companion
+        run: python3 tools/development/package_fetchdock.py
 
       - name: Apply Gecko patches
         run: ./tools/development/apply-patches.sh

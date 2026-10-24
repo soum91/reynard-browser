@@ -54,6 +54,7 @@ final class UniversalLinkManager {
         for request: LoadRequest,
         in session: GeckoSession
     ) async -> AllowOrDeny {
+        if await FetchDockBridge.handle(uri: request.uri, userInitiated: request.hasUserGesture || request.isUserInitiatedNavigation) { return .deny }
         guard
             Prefs.BrowsingSettings.openLinksInExternalApps,
             !session.isPrivateMode,

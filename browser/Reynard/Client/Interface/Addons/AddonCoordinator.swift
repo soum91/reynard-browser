@@ -73,6 +73,13 @@ final class AddonCoordinator: NSObject, AddonEmbedderDelegate {
     
     func start() async {
         AddonRuntime.shared.delegate = self
+        do {
+            _ = try await AddonRuntime.shared.ensureBuiltIn(
+                location: "resource://app/extensions/fetchdock/", id: "fetchdock@soum91"
+            )
+        } catch {
+            delegate?.presentAddonAlert(self, title: "FetchDock Companion", message: "Could not load the bundled companion: \(error)")
+        }
         _ = try? await AddonRuntime.shared.list()
         updateCoordinator.start()
         delegate?.refreshAddonChrome(self)
@@ -147,7 +154,7 @@ final class AddonCoordinator: NSObject, AddonEmbedderDelegate {
     }
     
     private var menuAddons: [Addon] {
-        let installedAddons = AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn }
+        let installedAddons = AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn || $0.id == "fetchdock@soum91" }
         guard dataSource?.isSelectedAddonTabPrivate == true else {
             return installedAddons
         }

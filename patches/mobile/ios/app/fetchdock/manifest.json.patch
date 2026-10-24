@@ -1,0 +1,44 @@
+diff --git a/mobile/ios/app/fetchdock/manifest.json b/mobile/ios/app/fetchdock/manifest.json
+new file mode 100644
+--- /dev/null
++++ b/mobile/ios/app/fetchdock/manifest.json
+@@ -0,0 +1,39 @@
++{
++  "name": "FetchDock Companion",
++  "version": "1.1.0",
++  "description": "Send HTTPS file links from this browser to FetchDock on the same iPhone or iPad.",
++  "icons": {
++    "128": "icon.svg"
++  },
++  "permissions": [
++    "activeTab",
++    "storage",
++    "https://*/*"
++  ],
++  "content_scripts": [
++    {
++      "matches": [
++        "https://*/*"
++      ],
++      "js": [
++        "core.js",
++        "content.js"
++      ],
++      "run_at": "document_idle",
++      "all_frames": false
++    }
++  ],
++  "content_security_policy": "script-src 'self'; object-src 'none'",
++  "manifest_version": 2,
++  "browser_action": {
++    "default_popup": "popup.html",
++    "default_icon": "icon.svg",
++    "default_title": "FetchDock"
++  },
++  "browser_specific_settings": {
++    "gecko": {
++      "id": "fetchdock@soum91",
++      "strict_min_version": "109.0"
++    }
++  }
++}

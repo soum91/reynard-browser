@@ -426,6 +426,7 @@ final class AddonPopupViewController: UIViewController, ContentDelegate, Navigat
     }
     
     func onLoadRequest(session: GeckoSession, request: LoadRequest) async -> AllowOrDeny {
+        if await FetchDockBridge.handle(uri: request.uri, userInitiated: request.hasUserGesture || request.isUserInitiatedNavigation) { return .deny }
         guard request.target != .current else {
             return .allow
         }
