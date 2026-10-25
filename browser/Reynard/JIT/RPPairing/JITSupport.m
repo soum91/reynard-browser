@@ -20,6 +20,18 @@
 
 static const uint16_t rppairingPort = 49152;
 
+static NSError *MakeSetupError(ErrorCode code, IdeviceFfiError *ffiError, NSString *address) {
+    NSString *reason = ffiError && ffiError->message ? [NSString stringWithUTF8String:ffiError->message] : @"No library detail available.";
+    if (reason.length > 1500) reason = [reason substringToIndex:1500];
+    NSString *detail = [NSString stringWithFormat:@"%@\nEndpoint: %@:%u\nLibrary %d/%d: %@",
+                       ErrorDescription(code), address, rppairingPort,
+                       ffiError ? ffiError->code : 0, ffiError ? ffiError->sub_code : 0, reason];
+    return [NSError errorWithDomain:ErrorDomain code:code userInfo:@{
+        NSLocalizedDescriptionKey: detail, ErrorCategory: @(ErrorGroupForCode(code))
+    }];
+}
+
+
 struct DeviceProvider {
     AdapterHandle *adapter;
     RsdHandshakeHandle *handshake;
@@ -209,7 +221,7 @@ BOOL connectDebugSession(DeviceProvider *provider, DebugSession *session, NSStri
     RpPairingFileHandle *rpPairingFile = NULL;
     ffiError = rp_pairing_file_read(resolvedPairingFilePath.fileSystemRepresentation, &rpPairingFile);
     if (ffiError) {
-        if (error) *error = MakeError(PairingFileReadFailed);
+        if (error) *error = MakeSetupError(PairingFileReadFailed, ffiError, targetAddress);
         idevice_error_free(ffiError);
         return NO;
     }
@@ -231,7 +243,7 @@ BOOL connectDebugSession(DeviceProvider *provider, DebugSession *session, NSStri
     rp_pairing_file_free(rpPairingFile);
     
     if (ffiError) {
-        if (error) *error = MakeError(TunnelCreateFailed);
+        if (error) *error = MakeSetupError(TunnelCreateFailed, ffiError, targetAddress);
         idevice_error_free(ffiError);
         return NO;
     }
@@ -393,7 +405,7 @@ DeviceProvider *createDeviceProvider(NSString *pairingFilePath, NSString *target
     RpPairingFileHandle *rpPairingFile = NULL;
     IdeviceFfiError *ffiError = rp_pairing_file_read(pairingFilePath.fileSystemRepresentation, &rpPairingFile);
     if (ffiError) {
-        if (error) *error = MakeError(PairingFileReadFailed);
+        if (error) *error = MakeSetupError(PairingFileReadFailed, ffiError, targetAddress);
         idevice_error_free(ffiError);
         return NULL;
     }
@@ -415,7 +427,7 @@ DeviceProvider *createDeviceProvider(NSString *pairingFilePath, NSString *target
     rp_pairing_file_free(rpPairingFile);
     
     if (ffiError) {
-        if (error) *error = MakeError(TunnelCreateFailed);
+        if (error) *error = MakeSetupError(TunnelCreateFailed, ffiError, targetAddress);
         idevice_error_free(ffiError);
         return NULL;
     }
@@ -433,6 +445,14 @@ DeviceProvider *createDeviceProvider(NSString *pairingFilePath, NSString *target
     uint64_t nextInterval = 0;
     ffiError = heartbeat_get_marco(heartbeatClient, 2, &nextInterval);
     if (!ffiError) ffiError = heartbeat_send_polo(heartbeatClient);
+    if (ffiError) {
+        if (error) *error = MakeSetupError(HeartbeatConnectFailed, ffiError, targetAddress);
+        idevice_error_free(ffiError);
+        heartbeat_client_free(heartbeatClient);
+        rsd_handshake_free(handshake);
+        adapter_free(adapter);
+        return NULL;
+    }
     
     DeviceProvider *provider = calloc(1, sizeof(*provider));
     if (!provider) {
@@ -802,3 +822,4 @@ void resetJITEndpointMonitor(void) {
         stopEndpointMonitorLocked();
     });
 }
+

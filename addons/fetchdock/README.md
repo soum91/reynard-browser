@@ -1,11 +1,13 @@
-# FetchDock Companion for the iOS fork
+# FetchDock built into Reynard
 
-Bundled on the `firefox-account-sync` branch as `fetchdock@soum91` using Gecko's existing built-in extension mechanism. Mozilla signature requirements for separately installed add-ons remain enabled. Only the exact `resource://app/extensions/fetchdock/` package is added to the iOS built-in allowlist.
+The `firefox-account-sync` branch includes the FetchDock segmented transfer engine directly. The separate FetchDock app is not required. Supported HTTPS GET downloads use four parallel connections inside Reynard's existing Downloads screen, including progress, pause/resume, saved files and background URLSession delivery.
 
-Open the FetchDock Companion entry in Reynard's site/add-on menu. It lists direct HTTPS file/media links and can send the current URL. Turn on **Catch file links on this site** to show a Download with FetchDock choice when a regular file link is clicked. The per-site setting is off by default. Native navigation delegates handle the explicit FetchDock link in both ordinary pages and add-on popups.
+The server must support byte ranges and supply a strong ETag. The engine validates Content-Range, identity encoding, validator and byte counts before streaming chunks into one file. Unsafe or unsupported range responses fall back to a full single connection. Completed chunks survive pause/relaunch; unfinished chunks restart.
 
-Requires FetchDock installed on the same iPhone/iPad. The add-on passes only the URL, without browser cookies. Blob links, DRM streams and arbitrary JavaScript/POST exports aren't extracted. A normal page URL downloads HTML. This is not cross-device transfer from Android TV to iPhone.
+Normal browser downloads reuse the originating Gecko request's authentication when handed to the native engine. Private-mode downloads, POST exports, non-resumable resources and small files retain Gecko's existing transfer path. Companion selections navigate in the current browser tab so Gecko authenticates the request before download interception. Explicit fetchdock scheme links are handled inside Reynard.
 
-The accompanying XPI is an unsigned developer/source package. Use the companion-enabled fork build for installation; it is not presented as a Mozilla-signed add-on. This branch retains its existing Firefox account and AutoFill work.
+The optional companion lists direct file links and offers per-site capture, off by default. It does not extract blobs or DRM streams. An ordinary page URL is still a webpage. External XPI signature requirements remain enabled; this companion is bundled into the fork.
 
-The dedicated workflow validates JavaScript and native handoff syntax, builds only the normal iOS variant with existing build caches, and publishes a separate companion IPA without replacing the existing nightly release or Android TV build. Bundle identifiers are preserved for update installation with the same signing identity.
+JIT setup updates validate remote pairing files before atomic replacement, retain the detailed tunnel-library cause, and show wrapped, scrollable error text. These are setup and diagnostics improvements, not proof that JIT is enabled on a device. JIT still needs a valid Remote Pairing (RPPairing) record, working LocalDevVPN and suitable device signing/setup.
+
+The dedicated workflow validates JavaScript, pairing-file preservation, Swift syntax, the shared engine against the iOS 13 SDK target, and Objective-C tunnel support. It builds the normal iOS variant and publishes a separate IPA. Firefox sync, AutoFill and existing bundle identifiers are retained. Android TV is unchanged.

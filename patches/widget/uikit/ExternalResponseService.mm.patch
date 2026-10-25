@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..e4858ffc0021
 --- /dev/null
 +++ b/widget/uikit/ExternalResponseService.mm
-@@ -0,0 +1,937 @@
+@@ -0,0 +1,960 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -34,6 +34,7 @@ index 000000000000..e4858ffc0021
 +#include "nsIFile.h"
 +#include "nsIHttpChannel.h"
 +#include "nsIHttpHeaderVisitor.h"
++#include "nsILoadInfo.h"
 +#include "nsIInputStream.h"
 +#include "nsIInterfaceRequestor.h"
 +#include "nsIMIMEService.h"
@@ -832,6 +833,28 @@ index 000000000000..e4858ffc0021
 +
 +    rv = httpChannel->VisitOriginalResponseHeaders(headerCollector);
 +    NS_ENSURE_SUCCESS(rv, rv);
++    // Hand the originating GET request's authentication only to the native
++    // embedder. Private sessions and non-idempotent requests stay in Gecko.
++    if (!aChannel->LoadInfo()->GetOriginAttributes().mPrivateBrowsingId) {
++      nsAutoCString method;
++      httpChannel->GetRequestMethod(method);
++      NS_ENSURE_TRUE(DefineUTF8StringProperty(cx, payload, "requestMethod", method),
++                     NS_ERROR_FAILURE);
++      JS::RootedObject requestHeaders(cx, JS_NewPlainObject(cx));
++      NS_ENSURE_TRUE(requestHeaders, NS_ERROR_OUT_OF_MEMORY);
++      const char* names[] = {"Cookie", "User-Agent", "Referer", "Authorization", "Accept"};
++      for (const char* name : names) {
++        nsAutoCString value;
++        if (NS_SUCCEEDED(httpChannel->GetRequestHeader(nsDependentCString(name), value))) {
++          NS_ENSURE_TRUE(DefineUTF8StringProperty(cx, requestHeaders, name, value),
++                         NS_ERROR_FAILURE);
++        }
++      }
++      JS::RootedValue requestHeadersValue(cx, JS::ObjectValue(*requestHeaders));
++      NS_ENSURE_TRUE(JS_DefineProperty(cx, payload, "requestHeaders",
++                                      requestHeadersValue, JSPROP_ENUMERATE),
++                     NS_ERROR_FAILURE);
++    }
 +  } else {
 +    nsCString contentType;
 +    if (NS_SUCCEEDED(aChannel->GetContentType(contentType))) {
@@ -941,3 +964,4 @@ index 000000000000..e4858ffc0021
 +  *aResult = nullptr;
 +  return NS_ERROR_NOT_IMPLEMENTED;
 +}
+

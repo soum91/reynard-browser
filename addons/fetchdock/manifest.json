@@ -1,7 +1,7 @@
 {
   "name": "FetchDock Companion",
-  "version": "1.1.0",
-  "description": "Send HTTPS file links from this browser to FetchDock on the same iPhone or iPad.",
+  "version": "1.2.0",
+  "description": "Download files inside Reynard using the built-in FetchDock parallel transfer engine.",
   "icons": {
     "128": "icon.svg"
   },

@@ -54,6 +54,8 @@ public struct ExternalResponseInfo {
     public let contentLength: Int64?
     public let headers: [ExternalResponseHeader]
     public let statusCode: Int
+    public let requestMethod: String?
+    public let requestHeaders: [String: String]
     private let commandHandler: (ExternalResponseCommand) -> Void
     
     init?(session: GeckoSession, payload: [String: Any?]?) {
@@ -75,6 +77,8 @@ public struct ExternalResponseInfo {
             return ExternalResponseHeader(name: name, value: value)
         } ?? []
         self.statusCode = PayloadValue.int(payload?["statusCode"]) ?? 0
+        self.requestMethod = payload?["requestMethod"] as? String
+        self.requestHeaders = payload?["requestHeaders"] as? [String: String] ?? [:]
         self.commandHandler = { [weak session] command in
             DispatchQueue.main.async { [weak session] in
                 session?.dispatcher.dispatch(
@@ -408,3 +412,4 @@ func newProcessHangHandler(_ session: GeckoSession) -> GeckoSessionHandler {
         }
     }
 }
+

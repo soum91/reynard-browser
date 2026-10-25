@@ -254,6 +254,8 @@ final class JITController {
         let messageText: String
         if usePtraceJIT() {
             messageText = NSLocalizedString("It's extremely rare that you encounter this issue! Make sure that your TrollStore installation or jailbroken environment is properly configured.\n\nYou may use the browser without JIT temporarily until the next launch by activating JIT-Less Mode.", comment: "Paragraph break intentional")
+        } else if error.code == -28 {
+            messageText = NSLocalizedString("Reynard could not establish its remote pairing tunnel. Reconnect LocalDevVPN while connected to Wi-Fi, then reopen Reynard. If it still fails, generate a new Remote Pairing (RPPairing) file for this device using idevice_pair and import it in Settings.\n\nThe details below show the tunnel library's actual error. JIT-Less Mode lets you continue browsing until the next launch.", comment: "JIT remote pairing recovery")
         } else {
             messageText = NSLocalizedString("Please check that your pairing file is valid, your loopback VPN is on, and you're connected to a stable Wi-Fi network.\n\nYou may use the browser without JIT temporarily until the next launch by activating JIT-Less Mode.", comment: "Paragraph break intentional")
         }
@@ -387,3 +389,4 @@ final class JITController {
         }
     }
 }
+

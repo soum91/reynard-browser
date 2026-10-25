@@ -3,6 +3,14 @@ on:
   push:
     branches: [firefox-account-sync]
     paths:
+      - browser/Reynard/JIT/**
+      - browser/Reynard/Client/Stores/**
+      - browser/Reynard/Client/Interface/Library/Downloads/**
+      - browser/Reynard/Client/Interface/Library/Settings/Sections/JIT/**
+      - browser/Reynard/AppDelegate.swift
+      - browser/GeckoView/Delegates/ContentDelegate.swift
+      - patches/widget/uikit/ExternalResponseService.mm.patch
+      - tools/development/test_pairing_import.swift
       - addons/fetchdock/**
       - tools/development/package_fetchdock.py
       - patches/mobile/ios/app/**
@@ -26,7 +34,13 @@ jobs:
           for SCRIPT in addons/fetchdock/*.js; do node --check "$SCRIPT"; done
           python3 tools/development/package_fetchdock.py
           python3 -c 'import json,pathlib; p=pathlib.Path("addons/fetchdock/manifest.json"); m=json.loads(p.read_text()); assert m["browser_specific_settings"]["gecko"]["id"] == "fetchdock@soum91"'
-          swiftc -frontend -parse browser/Reynard/Client/Interface/Addons/FetchDockBridge.swift
+          swiftc -frontend -parse browser/Reynard/Client/Interface/Addons/FetchDockBridge.swift browser/Reynard/JIT/JITController.swift browser/Reynard/JIT/Interface/JITFailure.swift browser/Reynard/Client/Stores/DownloadStore.swift browser/Reynard/Client/Interface/Library/Settings/Sections/JIT/JITSettingsSection.swift
+          cp tools/development/test_pairing_import.swift /tmp/main.swift
+          swiftc browser/Reynard/JIT/RPPairing/PairingFileInstaller.swift /tmp/main.swift -o /tmp/pairing-test
+          /tmp/pairing-test
+          IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          swiftc -typecheck -swift-version 5 -target arm64-apple-ios13.0 -sdk "$IOS_SDK" browser/Reynard/Client/Stores/FetchDockTransferEngine.swift
+          xcrun clang -fsyntax-only -fobjc-arc -fmodules -target arm64-apple-ios13.0 -isysroot "$IOS_SDK" -Ibrowser/Reynard/JIT -Ibrowser/Reynard/JIT/RPPairing browser/Reynard/JIT/RPPairing/JITSupport.m
   build:
     needs: validate
     uses: ./.github/workflows/build.yml

@@ -2,13 +2,14 @@
   const api = globalThis.browser || globalThis.chrome, core = globalThis.FetchDockCore;
   const status = document.getElementById('status'), files = document.getElementById('files');
   const capture = document.getElementById('capture'), toggle = document.getElementById('captureToggle');
-  function link(item) {
-    const anchor = document.createElement('a'); anchor.href = core.handoff(item.url); anchor.textContent = item.title;
+  function link(item, tabID) {
+    const anchor = document.createElement('a'); anchor.href = item.url;
+    anchor.onclick = async (event) => { event.preventDefault(); await api.tabs.update(tabID, { url: item.url }); window.close(); }; anchor.textContent = item.title;
     const host = document.createElement('span'); host.textContent = item.url; anchor.append(host); return anchor;
   }
   try {
     const [tab] = await api.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error('Open a website first.');
+    if (tab?.id == null) throw new Error('Open a website first.');
     let result;
     try { result = await api.tabs.sendMessage(tab.id, { type: 'fetchdock.scan' }); }
     catch (_) { throw new Error('Allow FetchDock on this website, then reload the page and reopen this menu.'); }
@@ -23,8 +24,8 @@
       } catch (_) { status.textContent = 'Could not save this site preference.'; }
     };
     status.textContent = result.candidates.length ? `${result.candidates.length} file link(s) found` : 'No direct file links found';
-    result.candidates.forEach(item => files.append(link(item)));
+    result.candidates.forEach(item => files.append(link(item, tab.id)));
     const page = document.getElementById('page');
-    if (core.handoff(result.url)) { page.href = core.handoff(result.url); page.hidden = false; page.title = 'A normal webpage will download as HTML.'; }
+    if (core.handoff(result.url)) { page.href = result.url; page.onclick = async (event) => { event.preventDefault(); await api.tabs.update(tab.id, { url: result.url }); window.close(); }; page.hidden = false; page.title = 'A normal webpage will download as HTML.'; }
   } catch (error) { status.textContent = error.message; capture.hidden = true; }
 })();

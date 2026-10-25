@@ -37,9 +37,9 @@ new file mode 100644
 +    document.getElementById('__fetchdock_handoff')?.remove();
 +    const box = document.createElement('div'); box.id = '__fetchdock_handoff';
 +    Object.assign(box.style, { position: 'fixed', bottom: '16px', left: '16px', right: '16px', zIndex: '2147483647', background: '#102d32', color: '#fff', padding: '16px', border: '1px solid #64f4cb', borderRadius: '16px', font: '15px system-ui', boxShadow: '0 5px 25px #0008' });
-+    const title = document.createElement('div'); title.textContent = 'Open this file in FetchDock'; title.style.marginBottom = '12px';
-+    const send = document.createElement('a'); send.textContent = 'Download with FetchDock'; send.href = core.handoff(link.href); send.style.cssText = 'color:#64f4cb;margin-right:20px;font-weight:bold';
-+    const original = document.createElement('a'); original.textContent = 'Use browser'; original.href = link.href; original.dataset.fetchdockBypass = '1'; original.style.color = '#fff';
++    const title = document.createElement('div'); title.textContent = 'Download inside Reynard with FetchDock'; title.style.marginBottom = '12px';
++    const send = document.createElement('a'); send.textContent = 'Download with FetchDock'; send.href = link.href; send.dataset.fetchdockBypass = '1'; if (link.hasAttribute('download')) send.setAttribute('download', link.getAttribute('download') || ''); send.style.cssText = 'color:#64f4cb;margin-right:20px;font-weight:bold';
++    const original = document.createElement('a'); original.textContent = 'Open link'; original.href = link.href; original.dataset.fetchdockBypass = '1'; original.style.color = '#fff';
 +    if (link.hasAttribute('download')) original.setAttribute('download', link.getAttribute('download') || '');
 +    const close = document.createElement('button'); close.textContent = 'Dismiss'; close.style.cssText = 'margin-left:18px;background:transparent;color:#aaa;border:0'; close.onclick = () => box.remove();
 +    box.append(title, send, original, close); document.documentElement.append(box);
@@ -50,7 +50,7 @@ new file mode 100644
 +    if (!element || element.closest('#__fetchdock_handoff') || element.dataset.fetchdockBypass) return;
 +    if (!core.downloadURL(element.href) || (!element.hasAttribute('download') && !core.looksLikeFile(element.href))) return;
 +    event.preventDefault(); event.stopImmediatePropagation();
-+    // A visible second tap preserves the platform's explicit external-app consent.
++    // The second tap starts a normal Gecko request so its session authenticates the download.
 +    banner(element);
 +  }, true);
 +})();

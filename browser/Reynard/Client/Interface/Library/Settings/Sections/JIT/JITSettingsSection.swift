@@ -339,18 +339,7 @@ private func installPairingFile(from downloadLocation: URL) throws {
         .appendingPathComponent("pairingFile.plist", isDirectory: false)
     try fileManager.createDirectory(at: destinationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     
-    let normalizedSourceURL = downloadLocation.standardizedFileURL
-    let normalizedDestinationURL = destinationURL.standardizedFileURL
-    
-    guard normalizedSourceURL != normalizedDestinationURL else {
-        Prefs.JITSettings.isJITEnabled = false
-        return
-    }
-    
-    if fileManager.fileExists(atPath: normalizedDestinationURL.path) {
-        try fileManager.removeItem(at: normalizedDestinationURL)
-    }
-    
-    try fileManager.copyItem(at: normalizedSourceURL, to: normalizedDestinationURL)
+    try PairingFileInstaller.install(from: downloadLocation, to: destinationURL)
     Prefs.JITSettings.isJITEnabled = false
 }
+

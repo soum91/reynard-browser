@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
 
-/// Explicit, user-initiated handoff to the companion on the same device.
+/// Explicit, user-initiated download into Reynard's built-in FetchDock engine.
 @MainActor
 enum FetchDockBridge {
     private static var pending = Set<String>()
@@ -19,17 +19,10 @@ enum FetchDockBridge {
               destination.user == nil, destination.password == nil else { return true }
         if pending.contains(value) { return true }
         if let previous = lastOpened, previous.0 == value, Date().timeIntervalSince(previous.1) < 1 { return true }
-        var handoff = URLComponents()
-        handoff.scheme = "fetchdock"; handoff.host = "download"
-        handoff.queryItems = [URLQueryItem(name: "url", value: destination.absoluteString)]
-        guard let url = handoff.url else { return true }
         pending.insert(value)
         defer { pending.remove(value) }
-        let opened: Bool = await withCheckedContinuation { continuation in
-            UIApplication.shared.open(url, options: [:]) { continuation.resume(returning: $0) }
-        }
-        if opened { lastOpened = (value, Date()) }
-        else { AlertPresenter.show(title: "FetchDock", message: "Install FetchDock on this iPhone or iPad to download this file.") }
+        DownloadStore.shared.startFetchDockDownload(url: destination)
+        lastOpened = (value, Date())
         return true
     }
 }
