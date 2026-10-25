@@ -23,7 +23,7 @@ permissions:
   contents: read
 concurrency:
   group: reynard-fetchdock-companion
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: macos-26
@@ -86,4 +86,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
+          LATEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/firefox-account-sync" --jq .sha)
+          if [ "$LATEST_SHA" != "$GITHUB_SHA" ]; then echo "Skipping superseded build"; exit 0; fi
           gh release create "fetchdock-${BUILD_NUMBER}" "dist/Reynard-FetchDock-build-${BUILD_NUMBER}.ipa" --title "Reynard with FetchDock Companion (${BUILD_NUMBER})" --notes-file addons/fetchdock/README.md --latest=false

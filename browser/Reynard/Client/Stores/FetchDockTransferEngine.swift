@@ -23,8 +23,10 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
     private var records: [UUID: Transfer] = [:]
     private var tasks: [Int: URLSessionDownloadTask] = [:]
     private var samples: [UUID: (Date, Int64)] = [:]
+    private var lastEmissions: [UUID: Date] = [:]
     private var ready = false
     private var connecting = false
+    private var cookieStorage: HTTPCookieStorage?
     private lazy var session: URLSession = {
         let config = configuration ?? URLSessionConfiguration.background(withIdentifier: identifier)
         config.isDiscretionary = false
@@ -32,6 +34,9 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
         config.httpMaximumConnectionsPerHost = 8
         config.timeoutIntervalForResource = 7 * 86400
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpShouldSetCookies = true
+        if config.httpCookieStorage == nil { config.httpCookieStorage = .shared }
+        cookieStorage = config.httpCookieStorage
         let delegates = OperationQueue()
         delegates.maxConcurrentOperationCount = 1
         delegates.underlyingQueue = queue
@@ -114,7 +119,7 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
     func remove(_ id: UUID) { queue.sync {
         cancelTasks(id)
         if let t = records.removeValue(forKey: id) { try? FileManager.default.removeItem(at: fileURL(t)) }
-        try? FileManager.default.removeItem(at: directory(id)); samples.removeValue(forKey: id); try? save()
+        try? FileManager.default.removeItem(at: directory(id)); samples.removeValue(forKey: id); lastEmissions.removeValue(forKey: id); try? save()
     } }
     private static func allowed(_ url: URL) -> Bool {
         if url.user != nil || url.password != nil { return false }
@@ -134,8 +139,11 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
         try data.write(to: root.appendingPathComponent("transfers.json"), options: .atomic)
         #endif
     }
-    private func emit(_ id: UUID) {
+    private func emit(_ id: UUID, force: Bool = false) {
         guard let transfer = records[id] else { return }
+        let now = Date()
+        if !force && transfer.state == .running && now.timeIntervalSince(lastEmissions[id] ?? .distantPast) < 0.25 { return }
+        lastEmissions[id] = now
         DispatchQueue.main.async { [weak self] in self?.onChange?(transfer) }
     }
     private func tag(_ task: URLSessionTask) -> (UUID, UUID, Int)? {
@@ -147,14 +155,35 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
     private func cancelTasks(_ id: UUID) {
         for (key, task) in Array(tasks) where tag(task)?.0 == id { tasks.removeValue(forKey: key); task.cancel() }
     }
+    static func scopedCookies(_ header: String, for target: URL) -> [HTTPCookie] {
+        header.split(separator: ";").compactMap { entry in
+            let fields = entry.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard fields.count == 2, target.host != nil else { return nil }
+            let name = fields[0].trimmingCharacters(in: .whitespaces)
+            let path = name.hasPrefix("__Host-") ? "/" : (target.path.isEmpty ? "/" : target.path)
+            // OriginURL produces a host cookie without widening it to subdomains.
+            var properties: [HTTPCookiePropertyKey: Any] = [.name: name, .value: String(fields[1]).trimmingCharacters(in: .whitespaces), .originURL: target, .path: path]
+            if target.scheme == "https" { properties[.secure] = "TRUE" }
+            return HTTPCookie(properties: properties)
+        }
+    }
     private func request(_ transfer: Transfer, index: Int) -> URLRequest {
         let target = transfer.resolvedURL ?? transfer.url
         var request = URLRequest(url: target, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90)
         request.allowsCellularAccess = transfer.allowsCellular
+        request.mainDocumentURL = target
+        request.httpShouldHandleCookies = true
         for (name, value) in transfer.headers {
             let key = name.lowercased()
             if ["range", "if-range", "accept-encoding", "host", "content-length"].contains(key) { continue }
             if ["cookie", "authorization", "referer"].contains(key) && (target.scheme != transfer.url.scheme || target.host != transfer.url.host || target.port != transfer.url.port) { continue }
+            if key == "cookie" {
+                // Let the system cookie jar apply host/path/secure rules at every
+                // redirect, including in background sessions (which cannot veto
+                // redirects). A manual Cookie header would follow other hosts.
+                for cookie in Self.scopedCookies(value, for: target) { cookieStorage?.setCookie(cookie) }
+                continue
+            }
             request.setValue(value, forHTTPHeaderField: name)
         }
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
@@ -282,7 +311,7 @@ final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {
                 guard let target = response.url, Self.allowed(target) else { fail(id, "Unsupported download redirect."); return }
                 t.resolvedURL = target; t.expected = range.2; t.validator = etag; t.mode = .segmented
                 t.parts = Self.partitions(total: range.2, count: t.connections)
-                t.received = 0; records[id] = t; try save(); schedule(id); emit(id); return
+                t.received = 0; records[id] = t; try save(); schedule(id); emit(id, force: true); return
             }
             guard index >= 0 else { fail(id, "Server returned an unexpected partial response."); return }
             let part = t.parts[index]
