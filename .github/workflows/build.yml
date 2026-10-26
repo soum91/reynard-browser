@@ -45,6 +45,19 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       should_build: ${{ steps.matrix.outputs.should_build }}
     steps:
+      - name: Check out patches for fast Gecko API preflight
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+          fetch-depth: 1
+
+      - name: Reject invalid LoadInfo ownership usage
+        run: |
+          if grep -nF 'LoadInfo()->GetOriginAttributes' patches/widget/uikit/ExternalResponseService.mm.patch; then
+            echo "::error::Gecko LoadInfo() returns an already_AddRefed object; store it in nsCOMPtr before accessing members."
+            exit 1
+          fi
+
       - name: Select matrix
         id: matrix
         uses: actions/github-script@v9

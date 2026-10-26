@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..e4858ffc0021
 --- /dev/null
 +++ b/widget/uikit/ExternalResponseService.mm
-@@ -0,0 +1,960 @@
+@@ -0,0 +1,961 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -835,7 +835,8 @@ index 000000000000..e4858ffc0021
 +    NS_ENSURE_SUCCESS(rv, rv);
 +    // Hand the originating GET request's authentication only to the native
 +    // embedder. Private sessions and non-idempotent requests stay in Gecko.
-+    if (!aChannel->LoadInfo()->GetOriginAttributes().mPrivateBrowsingId) {
++    nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
++    if (loadInfo && !loadInfo->GetOriginAttributes().mPrivateBrowsingId) {
 +      nsAutoCString method;
 +      httpChannel->GetRequestMethod(method);
 +      NS_ENSURE_TRUE(DefineUTF8StringProperty(cx, payload, "requestMethod", method),
