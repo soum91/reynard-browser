@@ -46,4 +46,4 @@ jobs:
       nightly: true
       build_normal_ipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_normal_ipa }}
       build_trollstore_tipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_trollstore_tipa }}
-      build_jailbroken_ipa: ${{ github.event_name == 'schedule' || inputs.build_jailbroken_ipa }}
+      build_jailbroken_ipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_jailbroken_ipa }}
