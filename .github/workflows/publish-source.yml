@@ -157,3 +157,17 @@ jobs:
           done
           gh release edit nightly -R "$REPO" --prerelease --notes-file dist/notes.md \
             --title "Nightly (Firefox Sync) build ${{ steps.run.outputs.build }} $(echo ${{ steps.run.outputs.sha }} | cut -c1-7)"
+
+      - name: Refresh FlareStore source branch
+        # This stable raw JSON URL is the one users add to FlareStore.
+        # We publish only after the rolling release and its IPA are available.
+        run: |
+          set -euo pipefail
+          BRANCH="flarestore-source"
+          FILE_SHA=$(gh api "repos/$REPO/contents/source.json?ref=$BRANCH" --jq .sha)
+          SOURCE_B64=$(base64 -w0 dist/source.json)
+          gh api --method PUT "repos/$REPO/contents/source.json" \
+            -f "message=Refresh FlareStore source (nightly build ${{ steps.run.outputs.build }})" \
+            -f "branch=$BRANCH" \
+            -f "sha=$FILE_SHA" \
+            -f "content=$SOURCE_B64"
