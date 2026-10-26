@@ -97,13 +97,13 @@ final class JITFailureView: UIView {
         
         errorScrollView.translatesAutoresizingMaskIntoConstraints = false
         errorScrollView.showsHorizontalScrollIndicator = false
-        errorScrollView.showsVerticalScrollIndicator = false
-        errorScrollView.alwaysBounceHorizontal = true
-        errorScrollView.alwaysBounceVertical = false
+        errorScrollView.showsVerticalScrollIndicator = true
+        errorScrollView.alwaysBounceHorizontal = false
+        errorScrollView.alwaysBounceVertical = true
         
         errorLabel.textAlignment = .left
-        errorLabel.numberOfLines = 1
-        errorLabel.lineBreakMode = .byClipping
+        errorLabel.numberOfLines = 0
+        errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.textColor = .label
         errorLabel.translatesAutoresizingMaskIntoConstraints = false
         errorLabel.adjustsFontForContentSizeCategory = true
@@ -196,14 +196,13 @@ final class JITFailureView: UIView {
             errorScrollView.leadingAnchor.constraint(equalTo: errorContainerView.leadingAnchor, constant: 14),
             errorScrollView.trailingAnchor.constraint(equalTo: errorContainerView.trailingAnchor, constant: -14),
             errorScrollView.bottomAnchor.constraint(equalTo: errorContainerView.bottomAnchor, constant: -14),
-            errorScrollView.heightAnchor.constraint(equalToConstant: 24),
+            errorScrollView.heightAnchor.constraint(equalToConstant: 96),
             
             errorLabel.leadingAnchor.constraint(equalTo: errorScrollView.contentLayoutGuide.leadingAnchor),
             errorLabel.trailingAnchor.constraint(equalTo: errorScrollView.contentLayoutGuide.trailingAnchor),
             errorLabel.topAnchor.constraint(equalTo: errorScrollView.contentLayoutGuide.topAnchor),
             errorLabel.bottomAnchor.constraint(equalTo: errorScrollView.contentLayoutGuide.bottomAnchor),
-            errorLabel.heightAnchor.constraint(equalTo: errorScrollView.frameLayoutGuide.heightAnchor),
-            errorLabel.widthAnchor.constraint(greaterThanOrEqualTo: errorScrollView.frameLayoutGuide.widthAnchor),
+            errorLabel.widthAnchor.constraint(equalTo: errorScrollView.frameLayoutGuide.widthAnchor),
         ])
         
         quitButtonMaxLandscapeWidthConstraint.isActive = false
@@ -269,3 +268,4 @@ final class JITFailureViewController: UIViewController {
         }
     }
 }
+

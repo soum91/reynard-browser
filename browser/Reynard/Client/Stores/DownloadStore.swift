@@ -48,10 +48,60 @@ struct DownloadItemSnapshot {
     let downloadedBytes: Int64
     let bytesPerSecond: Int64
     let addedAt: Date
+    var connectionCount: Int = 1
 }
 
 final class DownloadStore: NSObject {
     static let shared = DownloadStore()
+    static let fetchDockSessionIdentifier = "com.minh-ton.Reynard.fetchdock.parallel.v1"
+    private var fetchDockItems: [DownloadItemSnapshot] = []
+    private lazy var fetchDock: FetchDockTransferEngine = {
+        let engine = FetchDockTransferEngine(identifier: Self.fetchDockSessionIdentifier,
+            root: storage.appDataDirectoryURL.appendingPathComponent("FetchDock"),
+            output: storage.downloadsDirectoryURL)
+        engine.onChange = { [weak self] transfer in
+            guard let self else { return }
+            self.stateQueue.async {
+                self.refreshFetchDockLocked()
+                if transfer.state == .completed { self.hasUnviewedCompletedDownloads = true }
+                self.postDidChange()
+            }
+        }
+        return engine
+    }()
+
+    func handleFetchDockBackgroundEvents(_ completion: @escaping () -> Void) {
+        fetchDock.backgroundCompletion = completion
+        fetchDock.connect()
+    }
+
+    func startFetchDockDownload(url: URL, filename: String? = nil, headers: [String: String] = [:]) {
+        let name = filename ?? url.lastPathComponent
+        fetchDock.start(url: url, filename: name.isEmpty ? "Download" : name, headers: headers, connections: 4)
+        stateQueue.async { self.postDidStartDownload(); self.postDidChange() }
+    }
+
+    private func refreshFetchDockLocked() {
+        fetchDockItems = fetchDock.snapshots().map { transfer in
+            let state: DownloadItemSnapshot.State
+            switch transfer.state {
+            case .running: state = .downloading
+            case .paused: state = .paused
+            case .failed: state = .failed
+            case .cancelled: state = .cancelled
+            case .completed: state = .completed
+            }
+            let file = fetchDock.fileURL(transfer)
+            return DownloadItemSnapshot(id: transfer.id, fileName: transfer.filename,
+                fileURL: state == .completed ? file : nil, sourceURL: transfer.url,
+                originalURL: nil, mimeType: nil, state: state, canPause: state == .downloading || state == .paused,
+                fileExists: state != .completed || fileManager.fileExists(atPath: file.path),
+                totalBytes: transfer.expected > 0 ? transfer.expected : nil,
+                downloadedBytes: transfer.received, bytesPerSecond: Int64(transfer.speed), addedAt: transfer.created,
+                connectionCount: transfer.mode == .segmented ? transfer.parts.count : 1)
+        }
+    }
+
     
     struct WebExtensionDownloadItem {
         let id: Int
@@ -236,6 +286,8 @@ final class DownloadStore: NSObject {
             self.prepareStorageLocked()
             self.loadPersistedDownloadsLocked()
         }
+        _ = fetchDock
+        stateQueue.sync { refreshFetchDockLocked() }
     }
     
     // MARK: - Downloads
@@ -257,6 +309,19 @@ final class DownloadStore: NSObject {
             suggestedFileName: response.filename,
             sourceURL: sourceURL
         )
+        // Only replay resumable GETs with a strong entity validator. Gecko keeps
+        // POSTs, private downloads, one-shot resources and unsupported transfers.
+        let etag = response.headers.first { $0.name.lowercased() == "etag" }?.value ?? ""
+        let acceptsRanges = response.headers.contains { $0.name.lowercased() == "accept-ranges" && $0.value.lowercased() == "bytes" }
+        if response.requestMethod == "GET", response.statusCode == 200, sourceURL.scheme == "https",
+           (response.contentLength ?? 0) >= 1024 * 1024, acceptsRanges,
+           etag.hasPrefix("\""), etag.hasSuffix("\"") {
+            return PendingDownload(fileName: fileName, startHandler: { [weak self] in
+                response.cancel()
+                self?.startFetchDockDownload(url: sourceURL, filename: fileName, headers: response.requestHeaders)
+                return nil
+            })
+        }
         let controls = CapturedDownloadControls(
             cancel: response.cancel,
             pause: response.pause,
@@ -376,6 +441,11 @@ final class DownloadStore: NSObject {
     // MARK: - Download Management
     
     func cancel(id: UUID) {
+        if fetchDock.contains(id) {
+            fetchDock.cancel(id)
+            stateQueue.async { self.refreshFetchDockLocked(); self.postDidChange() }
+            return
+        }
         stateQueue.async {
             if let active = self.activeDownloads.values.first(where: { $0.id == id }) {
                 self.activeDownloads.removeValue(forKey: active.task.taskIdentifier)
@@ -401,6 +471,11 @@ final class DownloadStore: NSObject {
     }
     
     func pause(id: UUID) {
+        if fetchDock.contains(id) {
+            fetchDock.pause(id)
+            stateQueue.async { self.refreshFetchDockLocked(); self.postDidChange() }
+            return
+        }
         stateQueue.async {
             if let active = self.activeDownloads.values.first(where: { $0.id == id }) {
                 guard !active.isPaused else {
@@ -430,6 +505,11 @@ final class DownloadStore: NSObject {
     }
     
     func resume(id: UUID) {
+        if fetchDock.contains(id) {
+            fetchDock.resume(id)
+            stateQueue.async { self.refreshFetchDockLocked(); self.postDidChange() }
+            return
+        }
         stateQueue.async {
             if let active = self.activeDownloads.values.first(where: { $0.id == id }) {
                 guard active.isPaused else {
@@ -459,6 +539,11 @@ final class DownloadStore: NSObject {
     }
     
     func removeDownload(id: UUID) {
+        if fetchDock.contains(id) {
+            fetchDock.remove(id)
+            stateQueue.async { self.refreshFetchDockLocked(); self.postDidChange() }
+            return
+        }
         stateQueue.async {
             guard let index = self.persistedDownloads.firstIndex(where: { $0.id == id }) else {
                 return
@@ -477,6 +562,9 @@ final class DownloadStore: NSObject {
     }
     
     func clearCompletedDownloadFiles(since startDate: Date? = nil) {
+        for transfer in fetchDock.snapshots() where transfer.state != .running && transfer.state != .paused {
+            if startDate.map({ transfer.created >= $0 }) ?? true { fetchDock.remove(transfer.id) }
+        }
         stateQueue.async {
             let removedDownloads = self.persistedDownloads.filter { entry in
                 guard entry.effectiveState != .inProgress else {
@@ -742,12 +830,13 @@ final class DownloadStore: NSObject {
                 )
             }
         
-        return DownloadStoreSnapshot(summary: makeSummaryLocked(), items: activeItems + terminalItems)
+        return DownloadStoreSnapshot(summary: makeSummaryLocked(), items: (activeItems + terminalItems + fetchDockItems).sorted { $0.addedAt > $1.addedAt })
     }
     
     private func makeSummaryLocked() -> DownloadStoreSummary {
         let activeProgress = activeDownloads.values.map { ($0.expectedBytes, $0.downloadedBytes) }
         + capturedDownloads.values.map { ($0.expectedBytes, $0.downloadedBytes) }
+        + fetchDockItems.filter { $0.state == .downloading || $0.state == .paused }.map { ($0.totalBytes, $0.downloadedBytes) }
         let hasUnknownExpectedBytes = activeProgress.contains { $0.0 == nil }
         let totalExpectedBytes = activeProgress.reduce(Int64(0)) { partialResult, item in
             partialResult + max(item.0 ?? 0, 0)
@@ -764,7 +853,7 @@ final class DownloadStore: NSObject {
         
         let terminalCount = persistedDownloads.lazy.filter { $0.effectiveState != .inProgress }.count
         return DownloadStoreSummary(
-            totalCount: terminalCount + activeProgress.count,
+            totalCount: terminalCount + activeProgress.count + fetchDockItems.filter { $0.state != .downloading && $0.state != .paused }.count,
             activeCount: activeProgress.count,
             aggregateProgress: min(max(aggregateProgress, 0), 1),
             hasUnviewedCompletedDownloads: hasUnviewedCompletedDownloads
@@ -1187,3 +1276,4 @@ extension DownloadStore: URLSessionDownloadDelegate {
         }
     }
 }
+

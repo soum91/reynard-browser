@@ -214,6 +214,7 @@ final class DownloadItemCell: UITableViewCell {
         if let speedText {
             detailsText += " (\(speedText))"
         }
+        if item.connectionCount > 1 { detailsText += " • FetchDock \(item.connectionCount) connections" }
         statusLabel.text = detailsText
         
         progressView.isHidden = false
@@ -255,3 +256,4 @@ final class DownloadItemCell: UITableViewCell {
         return "\(formattedValue) \(units[unitIndex])"
     }
 }
+

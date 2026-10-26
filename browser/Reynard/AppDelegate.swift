@@ -8,6 +8,10 @@
 import UIKit
 
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == DownloadStore.fetchDockSessionIdentifier else { completionHandler(); return }
+        DownloadStore.shared.handleFetchDockBackgroundEvents(completionHandler)
+    }
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         JITController.shared.startBackgroundAudioIfNeeded()
@@ -20,3 +24,4 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     func application(_ application: UIApplication, didDiscardSceneSessions sceneSessions: Set<UISceneSession>) {}
 }
+

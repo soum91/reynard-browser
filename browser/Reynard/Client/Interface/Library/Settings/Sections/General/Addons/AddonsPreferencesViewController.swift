@@ -282,7 +282,7 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
     // MARK: - Add-on Loading
     
     private func loadCachedAddons() {
-        let visibleAddons = AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn }
+        let visibleAddons = AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn || $0.id == "fetchdock@soum91" }
         installedAddons = visibleAddons.filter { !$0.metaData.isUnsupported }
         unsupportedAddons = visibleAddons.filter { $0.metaData.isUnsupported }
         
@@ -312,7 +312,7 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
         
         await MainActor.run {
             Self.hasLoadedInstalledAddons = true
-            let visibleAddons = refreshedAddons.filter { !$0.isBuiltIn }
+            let visibleAddons = refreshedAddons.filter { !$0.isBuiltIn || $0.id == "fetchdock@soum91" }
             self.installedAddons = visibleAddons.filter { !$0.metaData.isUnsupported }
             self.unsupportedAddons = visibleAddons.filter { $0.metaData.isUnsupported }
             self.isLoadingAddons = false

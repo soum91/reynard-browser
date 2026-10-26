@@ -25,6 +25,7 @@ final class FirefoxAccountViewController: SettingsTableViewController {
         (.tabs, NSLocalizedString("Open Tabs", comment: "")),
         (.history, NSLocalizedString("History", comment: "")),
         (.bookmarks, NSLocalizedString("Bookmarks", comment: "")),
+        (.passwords, NSLocalizedString("Passwords", comment: "")),
     ]
 
     private var accountRows: [AccountRow] {
@@ -127,7 +128,7 @@ final class FirefoxAccountViewController: SettingsTableViewController {
         case .engines:
             return SettingsSectionText(
                 headerTitle: NSLocalizedString("Sync", comment: ""),
-                footerTitle: NSLocalizedString("History syncs both ways. Bookmarks from Firefox appear in a “Firefox Bookmarks” folder that is refreshed on every sync; changes you make inside that folder aren't sent back to Firefox.", comment: "")
+                footerTitle: NSLocalizedString("History syncs both ways. Bookmarks from Firefox appear in a “Firefox Bookmarks” folder that is refreshed on every sync; changes you make inside that folder aren't sent back to Firefox. Passwords are kept in this device's Keychain and offered by Reynard in Settings › Passwords › Password Options (AutoFill).", comment: "")
             )
         case .device:
             return SettingsSectionText(
@@ -236,6 +237,8 @@ final class FirefoxAccountViewController: SettingsTableViewController {
         } else if engine == .bookmarks {
             BookmarkStore.shared.removeSyncedBookmarks()
             SyncPreferences.setLastModified(0, for: "bookmarks")
+        } else if engine == .passwords {
+            SyncManager.removeSyncedPasswords()
         }
     }
 
@@ -265,7 +268,7 @@ final class FirefoxAccountViewController: SettingsTableViewController {
     private func confirmSignOut(sourceView: UIView?) {
         let sheet = UIAlertController(
             title: NSLocalizedString("Sign Out?", comment: ""),
-            message: NSLocalizedString("Reynard will stop syncing and remove the “Firefox Bookmarks” folder. Your history stays on this device.", comment: ""),
+            message: NSLocalizedString("Reynard will stop syncing and remove the “Firefox Bookmarks” folder and synced passwords. Your history stays on this device.", comment: ""),
             preferredStyle: .actionSheet
         )
         sheet.addAction(UIAlertAction(title: NSLocalizedString("Sign Out", comment: ""), style: .destructive) { _ in

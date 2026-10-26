@@ -1,0 +1,91 @@
+name: Build FetchDock Companion
+on:
+  push:
+    branches: [firefox-account-sync]
+    paths:
+      - browser/Reynard/JIT/**
+      - browser/Reynard/Client/Stores/**
+      - browser/Reynard/Client/Interface/Library/Downloads/**
+      - browser/Reynard/Client/Interface/Library/Settings/Sections/JIT/**
+      - browser/Reynard/AppDelegate.swift
+      - browser/GeckoView/Delegates/ContentDelegate.swift
+      - patches/widget/uikit/ExternalResponseService.mm.patch
+      - tools/development/test_pairing_import.swift
+      - addons/fetchdock/**
+      - tools/development/package_fetchdock.py
+      - patches/mobile/ios/app/**
+      - patches/mobile/shared/modules/geckoview/GeckoViewWebExtension.sys.mjs.patch
+      - browser/Reynard/Client/Interface/Addons/**
+      - browser/Reynard/Client/SessionManagement/Navigation/UniversalLinkManager.swift
+      - .github/workflows/fetchdock-companion.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reynard-fetchdock-companion
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check companion scripts and patch generation
+        run: |
+          for SCRIPT in addons/fetchdock/*.js; do node --check "$SCRIPT"; done
+          python3 tools/development/package_fetchdock.py
+          python3 -c 'import json,pathlib; p=pathlib.Path("addons/fetchdock/manifest.json"); m=json.loads(p.read_text()); assert m["browser_specific_settings"]["gecko"]["id"] == "fetchdock@soum91"'
+          swiftc -frontend -parse browser/Reynard/Client/Interface/Addons/FetchDockBridge.swift browser/Reynard/JIT/JITController.swift browser/Reynard/JIT/Interface/JITFailure.swift browser/Reynard/Client/Stores/DownloadStore.swift browser/Reynard/Client/Interface/Library/Settings/Sections/JIT/JITSettingsSection.swift
+          cp tools/development/test_pairing_import.swift /tmp/main.swift
+          swiftc browser/Reynard/JIT/RPPairing/PairingFileInstaller.swift /tmp/main.swift -o /tmp/pairing-test
+          /tmp/pairing-test
+          IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          swiftc -typecheck -swift-version 5 -target arm64-apple-ios13.0 -sdk "$IOS_SDK" browser/Reynard/Client/Stores/FetchDockTransferEngine.swift
+          xcrun clang -fsyntax-only -fobjc-arc -fmodules -target arm64-apple-ios13.0 -isysroot "$IOS_SDK" -Ibrowser/Reynard/JIT -Ibrowser/Reynard/JIT/RPPairing browser/Reynard/JIT/RPPairing/JITSupport.m
+  build:
+    needs: validate
+    uses: ./.github/workflows/build.yml
+    with:
+      checkout_ref: ${{ github.sha }}
+      build_bundled_companion: true
+      nightly: true
+      build_normal_ipa: true
+      build_trollstore_tipa: false
+      build_jailbroken_ipa: false
+  publish:
+    needs: build
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Reynard.ipa
+          path: dist
+      - name: Package the companion-enabled iOS build
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p package
+          cd package
+          unzip -q ../dist/Reynard.ipa
+          python3 - <<'PY'
+          import os,plistlib
+          from pathlib import Path
+          for path in [Path('Payload/Reynard.app/Info.plist'), *Path('Payload/Reynard.app/PlugIns').glob('*.appex/Info.plist')]:
+              info=plistlib.loads(path.read_bytes())
+              info['CFBundleShortVersionString']='0.18.1.'+os.environ['BUILD_NUMBER']
+              info['CFBundleVersion']=str(1000000+int(os.environ['BUILD_NUMBER']))
+              path.write_bytes(plistlib.dumps(info))
+          PY
+          for EXTENSION in Payload/Reynard.app/PlugIns/*.appex; do codesign --force --sign - --timestamp=none --preserve-metadata=entitlements,flags "$EXTENSION"; done
+          codesign --force --sign - --timestamp=none --preserve-metadata=entitlements,flags Payload/Reynard.app
+          zip -qry "../dist/Reynard-FetchDock-build-${BUILD_NUMBER}.ipa" Payload
+      - name: Publish companion build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          LATEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/firefox-account-sync" --jq .sha)
+          if [ "$LATEST_SHA" != "$GITHUB_SHA" ]; then echo "Skipping superseded build"; exit 0; fi
+          gh release create "fetchdock-${BUILD_NUMBER}" "dist/Reynard-FetchDock-build-${BUILD_NUMBER}.ipa" --title "Reynard with FetchDock Companion (${BUILD_NUMBER})" --notes-file addons/fetchdock/README.md --latest=false

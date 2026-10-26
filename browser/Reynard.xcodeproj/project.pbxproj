@@ -12,6 +12,7 @@
 		01GECKO0022F2F289C001F0001 /* GeckoView.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 01GECKO0002F2F289C001F0001 /* GeckoView.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		02WCPBF12F3000000000001 /* Reynard Helper.appex in Embed Process Extensions */ = {isa = PBXBuildFile; fileRef = 02WCPAPP2F3000000000001 /* Reynard Helper.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		03OLPBF12F3100000000001 /* OpenIn.appex in Embed Process Extensions */ = {isa = PBXBuildFile; fileRef = 03OLAPP2F3100000000001 /* OpenIn.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		04AFPBF12F3200000000001 /* ReynardAutoFill.appex in Embed Process Extensions */ = {isa = PBXBuildFile; fileRef = 04AFAPP2F3200000000001 /* ReynardAutoFill.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +44,13 @@
 			remoteGlobalIDString = 03OLTGT2F3100000000001;
 			remoteInfo = OpenIn;
 		};
+		04AFPRX2F3200000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 018C67962F2F289C001F0BBB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 04AFTGT2F3200000000001;
+			remoteInfo = ReynardAutoFill;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -64,6 +72,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				03OLPBF12F3100000000001 /* OpenIn.appex in Embed Process Extensions */,
+				04AFPBF12F3200000000001 /* ReynardAutoFill.appex in Embed Process Extensions */,
 				02WCPBF12F3000000000001 /* Reynard Helper.appex in Embed Process Extensions */,
 			);
 			name = "Embed Process Extensions";
@@ -77,6 +86,7 @@
 		01GECKO0052F2F289C001F0001 /* Reynard.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Reynard.xcconfig; sourceTree = "<group>"; };
 		02WCPAPP2F3000000000001 /* Reynard Helper.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Reynard Helper.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		03OLAPP2F3100000000001 /* OpenIn.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenIn.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		04AFAPP2F3200000000001 /* ReynardAutoFill.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReynardAutoFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -127,6 +137,28 @@
 			);
 			target = 03OLTGT2F3100000000001 /* OpenIn */;
 		};
+		04AFEXC12F3200000000001 /* Exceptions for "CredentialProvider" folder in "ReynardAutoFill" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				ReynardAutoFill.entitlements,
+				ReynardAutoFill.private.entitlements,
+				ReynardAutoFill.sideload.entitlements,
+			);
+			target = 04AFTGT2F3200000000001 /* ReynardAutoFill */;
+		};
+		04AFEXC22F3200000000001 /* Exceptions for "CredentialProvider" folder in "Reynard" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CredentialProviderViewController.swift,
+				Info.plist,
+				LoginListViewController.swift,
+				ReynardAutoFill.entitlements,
+				ReynardAutoFill.private.entitlements,
+				ReynardAutoFill.sideload.entitlements,
+			);
+			target = 018C679D2F2F289C001F0BBB /* Reynard */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -164,6 +196,15 @@
 			path = Extensions;
 			sourceTree = "<group>";
 		};
+		04AFGRP12F3200000000001 /* CredentialProvider */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				04AFEXC12F3200000000001 /* Exceptions for "CredentialProvider" folder in "ReynardAutoFill" target */,
+				04AFEXC22F3200000000001 /* Exceptions for "CredentialProvider" folder in "Reynard" target */,
+			);
+			path = CredentialProvider;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +238,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		04AFFRM2F3200000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -208,6 +256,7 @@
 				0111EABD2F48369400490C82 /* Helper */,
 				03OLGRP12F3100000000001 /* Extensions */,
 				018C67A02F2F289C001F0BBB /* Reynard */,
+				04AFGRP12F3200000000001 /* CredentialProvider */,
 				018C679F2F2F289C001F0BBB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -219,6 +268,7 @@
 				01GECKO0002F2F289C001F0001 /* GeckoView.framework */,
 				02WCPAPP2F3000000000001 /* Reynard Helper.appex */,
 				03OLAPP2F3100000000001 /* OpenIn.appex */,
+				04AFAPP2F3200000000001 /* ReynardAutoFill.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -261,9 +311,11 @@
 				01GECKO00B2F2F289C001F0001 /* PBXTargetDependency */,
 				02WCPDEP2F3000000000001 /* PBXTargetDependency */,
 				03OLDEP2F3100000000001 /* PBXTargetDependency */,
+				04AFDEP2F3200000000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				018C67A02F2F289C001F0BBB /* Reynard */,
+				04AFGRP12F3200000000001 /* CredentialProvider */,
 			);
 			name = Reynard;
 			packageProductDependencies = (
@@ -336,6 +388,28 @@
 			productReference = 03OLAPP2F3100000000001 /* OpenIn.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		04AFTGT2F3200000000001 /* ReynardAutoFill */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 04AFCFG2F3200000000001 /* Build configuration list for PBXNativeTarget "ReynardAutoFill" */;
+			buildPhases = (
+				04AFSRC2F3200000000001 /* Sources */,
+				04AFFRM2F3200000000001 /* Frameworks */,
+				04AFRES2F3200000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				04AFGRP12F3200000000001 /* CredentialProvider */,
+			);
+			name = ReynardAutoFill;
+			packageProductDependencies = (
+			);
+			productName = ReynardAutoFill;
+			productReference = 04AFAPP2F3200000000001 /* ReynardAutoFill.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -356,6 +430,9 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					03OLTGT2F3100000000001 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					04AFTGT2F3200000000001 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -387,6 +464,7 @@
 				01GECKO0012F2F289C001F0002 /* GeckoView */,
 				02WCPTGT2F3000000000001 /* Reynard Helper */,
 				03OLTGT2F3100000000001 /* OpenIn */,
+				04AFTGT2F3200000000001 /* ReynardAutoFill */,
 			);
 		};
 /* End PBXProject section */
@@ -414,6 +492,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		03OLRES2F3100000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		04AFRES2F3200000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -469,6 +554,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		04AFSRC2F3200000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -491,6 +583,11 @@
 			isa = PBXTargetDependency;
 			target = 03OLTGT2F3100000000001 /* OpenIn */;
 			targetProxy = 03OLPRX2F3100000000001 /* PBXContainerItemProxy */;
+		};
+		04AFDEP2F3200000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 04AFTGT2F3200000000001 /* ReynardAutoFill */;
+			targetProxy = 04AFPRX2F3200000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1046,6 +1143,83 @@
 			};
 			name = Release;
 		};
+		04AFDBG2F3200000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 01GECKO0052F2F289C001F0001 /* Reynard.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(CURRENT_BUILD)";
+				DEVELOPMENT_TEAM = NAR5D6HWAD;
+				ENABLE_DEBUG_DYLIB = NO;
+				FRAMEWORK_SEARCH_PATHS = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "";
+				INFOPLIST_FILE = CredentialProvider/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = CredentialProvider/ReynardAutoFill.entitlements;
+				INFOPLIST_KEY_CFBundleDisplayName = Reynard;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(IPHONEOS_DEPLOYMENT_TARGET)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "";
+				MARKETING_VERSION = "$(CURRENT_VERSION)";
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.minh-ton.Reynard.AutoFill";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		04AFREL2F3200000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 01GECKO0052F2F289C001F0001 /* Reynard.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(CURRENT_BUILD)";
+				DEVELOPMENT_TEAM = NAR5D6HWAD;
+				FRAMEWORK_SEARCH_PATHS = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "";
+				INFOPLIST_FILE = CredentialProvider/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = CredentialProvider/ReynardAutoFill.entitlements;
+				INFOPLIST_KEY_CFBundleDisplayName = Reynard;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(IPHONEOS_DEPLOYMENT_TARGET)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "";
+				MARKETING_VERSION = "$(CURRENT_VERSION)";
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.minh-ton.Reynard.AutoFill";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1090,6 +1264,15 @@
 			buildConfigurations = (
 				03OLDBG2F3100000000001 /* Debug */,
 				03OLREL2F3100000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		04AFCFG2F3200000000001 /* Build configuration list for PBXNativeTarget "ReynardAutoFill" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				04AFDBG2F3200000000001 /* Debug */,
+				04AFREL2F3200000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

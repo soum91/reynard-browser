@@ -10,7 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: browser/Reynard/Client/Sync
+          sparse-checkout: |
+            browser/Reynard/Client/Sync
+            browser/CredentialProvider
       - name: Type-check Sync sources
         run: |
           set +e
@@ -20,8 +22,16 @@ jobs:
             -default-isolation MainActor \
             -enable-upcoming-feature InferIsolatedConformances \
             -enable-upcoming-feature NonisolatedNonsendingByDefault \
-            $(find browser/Reynard/Client/Sync -name '*.swift' ! -name FxAWebChannelController.swift) > out.txt 2>&1
+            $(find browser/Reynard/Client/Sync -name '*.swift' ! -name FxAWebChannelController.swift) \
+            browser/CredentialProvider/SyncedLogins.swift > out.txt 2>&1
           echo "exit: $?"
+          # The AutoFill extension is self-contained, so it must type-check cleanly on its own.
+          echo "== AutoFill extension" >> out.txt
+          xcrun --sdk iphoneos swiftc -typecheck \
+            -target arm64-apple-ios13.0 -swift-version 5 \
+            -application-extension \
+            browser/CredentialProvider/*.swift >> out.txt 2>&1
+          echo "extension exit: $?"
           cat out.txt
           grep -E ': (error|warning): ' out.txt | grep -E ': error: ' | while IFS= read -r line; do
             file=$(echo "$line" | cut -d: -f1)

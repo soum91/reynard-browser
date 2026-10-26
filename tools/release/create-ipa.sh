@@ -45,6 +45,7 @@ fi
 plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard" "$APP_PATH/Info.plist"
 plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard.Helper" "$APP_PATH/PlugIns/Reynard Helper.appex/Info.plist"
 plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard.OpenIn" "$APP_PATH/PlugIns/OpenIn.appex/Info.plist"
+plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard.AutoFill" "$APP_PATH/PlugIns/ReynardAutoFill.appex/Info.plist"
 
 rm -rf "$WORK_DIR" "$ROOT_DIR/dist/$OUTPUT_NAME"
 mkdir -p "$WORK_DIR/Payload"
@@ -68,6 +69,10 @@ if [ "$BUILD_TYPE" != "normal" ]; then
 	ldid -S"$ROOT_DIR/browser/Reynard/JIT/Unsandboxed/ptrace_jit.entitlements" "$PTRACE_JIT_OUT"
 	ldid -S"$ROOT_DIR/browser/Reynard/Entitlements/Reynard.private.entitlements" "Payload/Reynard.app/Reynard"
 	ldid -S"$ROOT_DIR/browser/Helper/Entitlements/Reynard-Helper.private.entitlements" "Payload/Reynard.app/PlugIns/Reynard Helper.appex/Reynard Helper"
+	ldid -S"$ROOT_DIR/browser/CredentialProvider/ReynardAutoFill.private.entitlements" "Payload/Reynard.app/PlugIns/ReynardAutoFill.appex/ReynardAutoFill"
+else
+	# Sideloaders sign with the entitlements they find, so declare the AutoFill capability.
+	ldid -S"$ROOT_DIR/browser/CredentialProvider/ReynardAutoFill.sideload.entitlements" "Payload/Reynard.app/PlugIns/ReynardAutoFill.appex/ReynardAutoFill"
 fi
 
 if [ "$BUILD_TYPE" = "--jailbroken" ]; then
