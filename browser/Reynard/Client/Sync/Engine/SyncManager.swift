@@ -615,6 +615,9 @@ final class SyncManager {
         // An empty store with bookkeeping means the Keychain item is gone; download everything.
         let fullSync = lastModified == 0 || stored.isEmpty
         guard fullSync || serverModified > lastModified else {
+            // AutoFill might have been enabled since the last password sync.
+            // Re-publish the local identities even if Firefox has no new records.
+            await SyncedLoginIdentities.update(with: stored)
             return
         }
 
