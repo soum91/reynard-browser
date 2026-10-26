@@ -30,6 +30,7 @@ final class AppearancePreferencesViewController: SettingsTableViewController {
     
     private enum Row: Equatable {
         case appAppearance
+        case appIcon
         case BrowserChromePosition
         case showFullWebsiteAddress
         case pullToRefresh
@@ -114,6 +115,14 @@ final class AppearancePreferencesViewController: SettingsTableViewController {
                 AppAppearanceController.apply(appearance)
             }
             return cell
+        case .appIcon:
+            let cell = SettingsTableViewCell(style: .value1, reuseIdentifier: nil)
+            cell.textLabel?.text = NSLocalizedString("App Icon", comment: "")
+            cell.detailTextLabel?.text = UIApplication.shared.alternateIconName == "ReynardFox"
+                ? NSLocalizedString("Reynard Fox", comment: "")
+                : NSLocalizedString("Original", comment: "")
+            cell.accessoryType = .disclosureIndicator
+            return cell
         case .BrowserChromePosition:
             let cell = AddressBarPositionPickerCell(style: .default, reuseIdentifier: nil)
             cell.display(selectedPosition: Prefs.AppearanceSettings.addressBarPosition)
@@ -165,6 +174,62 @@ final class AppearancePreferencesViewController: SettingsTableViewController {
         guard displayedSections.indices.contains(indexPath.section),
               rows(for: displayedSections[indexPath.section]).indices.contains(indexPath.row) else {
             return
+        }
+        if rows(for: displayedSections[indexPath.section])[indexPath.row] == .appIcon {
+            presentAppIconPicker(at: indexPath)
+        }
+    }
+
+    private func presentAppIconPicker(at indexPath: IndexPath) {
+        guard UIApplication.shared.supportsAlternateIcons else {
+            let alert = UIAlertController(
+                title: NSLocalizedString("App Icon", comment: ""),
+                message: NSLocalizedString("Changing the app icon is unavailable in this build.", comment: ""),
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: ""), style: .default))
+            present(alert, animated: true)
+            return
+        }
+        let current = UIApplication.shared.alternateIconName
+        let picker = UIAlertController(
+            title: NSLocalizedString("App Icon", comment: ""),
+            message: NSLocalizedString("Choose the icon shown on your Home Screen.", comment: ""),
+            preferredStyle: .actionSheet
+        )
+        let choices: [(String, String?)] = [
+            (NSLocalizedString("Original", comment: ""), nil),
+            (NSLocalizedString("Reynard Fox", comment: ""), "ReynardFox"),
+        ]
+        for (title, iconName) in choices {
+            let label = current == iconName ? title + " ✓" : title
+            picker.addAction(UIAlertAction(title: label, style: .default) { [weak self] _ in
+                self?.changeAppIcon(to: iconName)
+            })
+        }
+        picker.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel))
+        if let popover = picker.popoverPresentationController {
+            popover.sourceView = tableView
+            popover.sourceRect = tableView.rectForRow(at: indexPath)
+        }
+        present(picker, animated: true)
+    }
+
+    private func changeAppIcon(to iconName: String?) {
+        guard UIApplication.shared.alternateIconName != iconName else { return }
+        UIApplication.shared.setAlternateIconName(iconName) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error {
+                    let alert = UIAlertController(
+                        title: NSLocalizedString("Couldn't Change Icon", comment: ""),
+                        message: error.localizedDescription,
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: ""), style: .default))
+                    self?.present(alert, animated: true)
+                }
+                self?.tableView.reloadData()
+            }
         }
     }
     
@@ -246,7 +311,7 @@ final class AppearancePreferencesViewController: SettingsTableViewController {
         let position = addressBarPosition ?? displayedAddressBarPosition
         switch section {
         case .appAppearance:
-            return [.appAppearance]
+            return [.appAppearance, .appIcon]
         case .addressBar:
             if UIDevice.current.userInterfaceIdiom == .pad {
                 return [.showFullWebsiteAddress]

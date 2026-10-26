@@ -15,3 +15,6 @@ LIBRARY_SEARCH_PATHS = $(inherited) $(GECKO_DIST)/bin
 FRAMEWORK_SEARCH_PATHS = $(inherited) $(BUILT_PRODUCTS_DIR)
 LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/Frameworks @loader_path/Frameworks
 SWIFT_OBJC_BRIDGING_HEADER = $(SRCROOT)/Reynard/Bridging/Reynard-Bridging-Header.h
+
+// Alternate Home Screen icon, selectable in Settings > Appearance.
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = ReynardFox
