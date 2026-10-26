@@ -1,0 +1,58 @@
+{
+  "name": "Reynard Browser (Firefox Sync)",
+  "identifier": "io.github.soum91.reynard-sync",
+  "website": "https://github.com/soum91/reynard-browser",
+  "subtitle": "Nightly builds of Reynard with Firefox Account sign-in, Sync and Send Tab",
+  "description": "An experimental Gecko-based web browser for iOS 13+.",
+  "tintColor": "#FB3728",
+  "iconURL": "https://github.com/user-attachments/assets/1c42dda2-b778-4342-9f94-8f852c3ad652",
+  "apps": [
+    {
+      "name": "Reynard Browser (Firefox Sync)",
+      "bundleIdentifier": "com.minh-ton.Reynard",
+      "developerName": "Minh Ton, Firefox Sync fork by soum91",
+      "subtitle": "Gecko browser for iOS 13+ with Firefox Sync and Send Tab.",
+      "localizedDescription": "Unofficial nightly builds from soum91's fork of Reynard. They add Firefox (Mozilla) Account sign-in, syncing of tabs, history and bookmarks, and Send Tab to and from your other Firefox devices. Not supported by the Reynard developer; report problems with these builds to the fork, not upstream.\n\nSelect Keep App Extensions when installing; Reynard does not work without them.\n\nReynard is a Gecko-based mobile web browser for iOS 13+.\n\nUnlike other browsers on iOS that are forced to use Apple's WebKit engine (including Safari and all third-party browsers), Reynard uses Gecko. This is the same engine that powers the Firefox browser on desktop and Android devices.\n\nThis is mainly for users on older iOS versions who are stuck with an outdated version of WebKit. Because WebKit is bundled with the OS, these devices cannot receive engine updates and often fail to load modern websites. By using Gecko which is kept up to date independently, Reynard allows these sites to work again. Users on newer iOS versions can also use the browser if they want an alternative browser engine on their device.\n\nSource code is available on GitHub at https://github.com/minh-ton/reynard-browser.",
+      "iconURL": "https://github.com/user-attachments/assets/1c42dda2-b778-4342-9f94-8f852c3ad652",
+      "tintColor": "#FB3728",
+      "category": "other",
+      "screenshotURLs": [
+        "https://github.com/user-attachments/assets/974e8ce1-f798-4bef-bac1-621ee535c5ee",
+        "https://github.com/user-attachments/assets/1429c985-f439-4e58-9385-0eefef4add4c",
+        "https://github.com/user-attachments/assets/a9eeaf68-828f-4ead-b619-8b9914e0ed2c",
+        "https://github.com/user-attachments/assets/bbc08422-4bf3-4928-933e-71cdad551fed",
+        "https://github.com/user-attachments/assets/cf01d298-a8d2-49ea-a557-7b1bbd1d893a"
+      ],
+      "appPermissions": {
+        "entitlements": [
+          "com.apple.developer.kernel.increased-memory-limit",
+          "get-task-allow"
+        ],
+        "privacy": {
+          "NSCameraUsageDescription": "Camera access lets websites in this browser scan QR codes, capture photos, and start video calls.",
+          "NSMicrophoneUsageDescription": "Microphone access lets websites in this browser capture your voice for calls and audio recordings.",
+          "NSPhotoLibraryAddUsageDescription": "Photo library access lets this browser save images and other media you download from websites to Photos.",
+          "NSPhotoLibraryUsageDescription": "Photo library access lets this browser upload photos and videos from your library and save images and other media you download from websites to Photos.",
+          "NSLocationWhenInUseUsageDescription": "Location access lets websites in this browser provide location-based content such as maps, directions, and nearby places."
+        }
+      },
+      "versions": [
+        {
+          "version": "0.18.0-dev",
+          "buildVersion": "0706105",
+          "date": "2026-10-22T22:13:26Z",
+          "localizedDescription": "Build 22, nightly from firefox-account-sync @ 0706105: Firefox Account sign-in, Sync, Send Tab and Receive Tab.",
+          "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.0-dev-build-22.ipa",
+          "size": 110016695,
+          "minOSVersion": "13.0"
+        }
+      ],
+      "version": "0.18.0-dev",
+      "versionDate": "2026-10-22T22:13:26Z",
+      "versionDescription": "Build 22, nightly from firefox-account-sync @ 0706105: Firefox Account sign-in, Sync, Send Tab and Receive Tab.",
+      "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.0-dev-build-22.ipa",
+      "size": 110016695
+    }
+  ],
+  "news": []
+}
