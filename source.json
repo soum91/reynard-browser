@@ -38,20 +38,20 @@
       },
       "versions": [
         {
-          "version": "0.18.0-dev",
-          "buildVersion": "55eecc5",
-          "date": "2026-10-27T03:30:52Z",
-          "localizedDescription": "Build 30, nightly from main @ 55eecc5: Firefox Account sign-in, Sync, Send Tab and Receive Tab.",
-          "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.0-dev-build-30.ipa",
-          "size": 111351336,
+          "version": "0.18.1",
+          "buildVersion": "29885133",
+          "date": "2026-10-27T13:34:16Z",
+          "localizedDescription": "New Reynard Ribbon R artwork. Choose Original or Reynard Fox in Settings > Appearance > App Icon. Repackaged from compiled nightly without rebuilding Gecko.",
+          "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.1-icon-1.ipa",
+          "size": 111176745,
           "minOSVersion": "13.0"
         }
       ],
-      "version": "0.18.0-dev",
-      "versionDate": "2026-10-27T03:30:52Z",
-      "versionDescription": "Build 30, nightly from main @ 55eecc5: Firefox Account sign-in, Sync, Send Tab and Receive Tab.",
-      "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.0-dev-build-30.ipa",
-      "size": 111351336
+      "version": "0.18.1",
+      "versionDate": "2026-10-27T13:34:16Z",
+      "versionDescription": "New Reynard Ribbon R artwork. Choose Original or Reynard Fox in Settings > Appearance > App Icon. Repackaged from compiled nightly without rebuilding Gecko.",
+      "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.1-icon-1.ipa",
+      "size": 111176745
     }
   ],
   "news": []
