@@ -38,20 +38,20 @@
       },
       "versions": [
         {
-          "version": "0.18.1",
-          "buildVersion": "29885133",
-          "date": "2026-10-27T13:34:16Z",
+          "version": "0.18.2",
+          "buildVersion": "29885218",
+          "date": "2026-10-27T14:59:08Z",
           "localizedDescription": "New Reynard Ribbon R artwork. Choose Original or Reynard Fox in Settings > Appearance > App Icon. Repackaged from compiled nightly without rebuilding Gecko.",
-          "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.1-icon-1.ipa",
-          "size": 111176745,
+          "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.2-icon-2.ipa",
+          "size": 111097386,
           "minOSVersion": "13.0"
         }
       ],
-      "version": "0.18.1",
-      "versionDate": "2026-10-27T13:34:16Z",
+      "version": "0.18.2",
+      "versionDate": "2026-10-27T14:59:08Z",
       "versionDescription": "New Reynard Ribbon R artwork. Choose Original or Reynard Fox in Settings > Appearance > App Icon. Repackaged from compiled nightly without rebuilding Gecko.",
-      "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.1-icon-1.ipa",
-      "size": 111176745
+      "downloadURL": "https://github.com/soum91/reynard-browser/releases/download/nightly/Reynard-0.18.2-icon-2.ipa",
+      "size": 111097386
     }
   ],
   "news": []
