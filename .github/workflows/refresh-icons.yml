@@ -1,0 +1,152 @@
+name: Refresh Reynard Icons (No Gecko Build)
+
+# Reuses the compiled Gecko engine and application binaries from the latest
+# nightly release. Only the Xcode asset catalog is recompiled, then the three
+# existing packages are repacked with a new, detectable app version.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/**'
+      - '.github/workflows/refresh-icons.yml'
+      - 'tools/release/repackage-icons.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-source
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode (asset catalog compiler only)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+
+      - name: Download compiled nightly IPAs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p existing output
+          gh release download nightly -R "$REPO" --pattern '*.ipa' --pattern '*.tipa' --dir existing
+          ls -lh existing
+          test "$(find existing -maxdepth 1 -name '*.ipa' | wc -l | tr -d ' ')" -ge 2
+          test "$(find existing -maxdepth 1 -name '*.tipa' | wc -l | tr -d ' ')" -ge 1
+
+      - name: Compile ONLY the app assets (no Gecko or Swift)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compiled-icons
+          xcrun actool \
+            --compile compiled-icons \
+            --platform iphoneos \
+            --minimum-deployment-target 13.0 \
+            --target-device iphone \
+            --target-device ipad \
+            --app-icon AppIcon \
+            --alternate-app-icon ReynardFox \
+            --output-partial-info-plist compiled-icons/partial-info.plist \
+            browser/Reynard/Resources/Assets.xcassets
+          for item in Assets.car 'ReynardFox60x60@2x.png' 'ReynardFox76x76@2x~ipad.png'; do
+            test -s "compiled-icons/$item" || { echo "::error::Missing compiled asset $item"; exit 1; }
+          done
+
+      - name: Choose the next app version
+        id: packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, plistlib, re, zipfile
+          from pathlib import Path
+          candidates = list(Path('existing').glob('Reynard-[0-9]*.ipa'))
+          if len(candidates) != 1:
+              raise SystemExit(f'Expected exactly one standard IPA; found {candidates}')
+          with zipfile.ZipFile(candidates[0]) as ipa:
+              info = plistlib.loads(ipa.read('Payload/Reynard.app/Info.plist'))
+          old = info['CFBundleShortVersionString']
+          match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-dev)?', old)
+          if not match:
+              raise SystemExit(f'Cannot advance IPA version {old!r}')
+          major, minor, patch = map(int, match.groups())
+          version = f'{major}.{minor}.{patch + 1}'
+          # Numeric increasing build avoids the previous SHA-as-build problem.
+          from datetime import datetime, timezone
+          build = str(int(datetime.now(timezone.utc).timestamp() // 60))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'version={version}\nbuild={build}\n')
+          print(f'Updating {old} to {version} ({build})')
+          PY
+
+      - name: Replace icon assets in all packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for input in existing/*.ipa existing/*.tipa; do
+            filename="$(basename "$input")"
+            case "$filename" in
+              Reynard-Jailbroken*) prefix=Reynard-Jailbroken ;;
+              Reynard-TrollStore*) prefix=Reynard-TrollStore ;;
+              Reynard-*) prefix=Reynard ;;
+              *) echo "Unknown package: $filename"; exit 1 ;;
+            esac
+            ext="${filename##*.}"
+            python3 tools/release/repackage-icons.py \
+              --input "$input" \
+              --assets compiled-icons \
+              --output "output/$prefix-${{ steps.packages.outputs.version }}-icon-${{ github.run_number }}.$ext" \
+              --version "${{ steps.packages.outputs.version }}" \
+              --build "${{ steps.packages.outputs.build }}"
+          done
+          ls -lh output
+
+      - name: Refresh AltStore and FlareStore source
+        shell: bash
+        run: |
+          set -euo pipefail
+          filename="Reynard-${{ steps.packages.outputs.version }}-icon-${{ github.run_number }}.ipa"
+          python3 .github/fork/publish_source.py "output/$filename" \
+            "https://github.com/$REPO/releases/download/nightly/$filename" \
+            "New Reynard Ribbon R artwork. Choose Original or Reynard Fox in Settings > Appearance > App Icon. Repackaged from compiled nightly without rebuilding Gecko." \
+            output/source.json
+
+      - name: Publish new icon-only packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload nightly -R "$REPO" --clobber output/*.ipa output/*.tipa output/source.json
+          # Never remove the previously working files before new uploads succeed.
+          gh api "repos/$REPO/releases/tags/nightly" --jq '.assets[] | "\(.id) \(.name)"' | while read -r id name; do
+            case "$name" in
+              *.ipa|*.tipa)
+                if [ ! -f "output/$name" ]; then
+                  gh api -X DELETE "repos/$REPO/releases/assets/$id"
+                fi
+                ;;
+            esac
+          done
+          gh release edit nightly -R "$REPO" --prerelease \
+            --title "Nightly ${{ steps.packages.outputs.version }} (new Ribbon R icon)" \
+            --notes "Icon-only refresh at commit $GITHUB_SHA. Reused compiled Gecko and native binaries. In-app icon selector: Settings > Appearance > App Icon."
+
+      - name: Update the stable FlareStore feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=flarestore-source
+          file_sha=$(gh api "repos/$REPO/contents/source.json?ref=$branch" --jq .sha)
+          encoded=$(base64 < output/source.json | tr -d '\n')
+          gh api --method PUT "repos/$REPO/contents/source.json" \
+            -f "message=Publish Reynard icon version ${{ steps.packages.outputs.version }}" \
+            -f "branch=$branch" -f "sha=$file_sha" -f "content=$encoded"
