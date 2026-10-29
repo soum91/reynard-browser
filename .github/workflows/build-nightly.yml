@@ -1,6 +1,15 @@
 name: Build Nightly
 
 on:
+  # On soum91's fork, publish new IPAs after app code changes to main.
+  # Documentation and CI-only edits do not trigger multi-hour builds.
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/fork/**'
+      - 'docs/**'
+      - '**/*.md'
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:
@@ -21,6 +30,11 @@ on:
         default: true
         type: boolean
 
+# Keep an in-progress build; collapse superseded queued pushes.
+concurrency:
+  group: reynard-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -30,6 +44,6 @@ jobs:
     with:
       checkout_ref: ${{ github.sha }}
       nightly: true
-      build_normal_ipa: ${{ github.event_name == 'schedule' || inputs.build_normal_ipa }}
-      build_trollstore_tipa: ${{ github.event_name == 'schedule' || inputs.build_trollstore_tipa }}
-      build_jailbroken_ipa: ${{ github.event_name == 'schedule' || inputs.build_jailbroken_ipa }}
+      build_normal_ipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_normal_ipa }}
+      build_trollstore_tipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_trollstore_tipa }}
+      build_jailbroken_ipa: ${{ github.event_name != 'workflow_dispatch' || inputs.build_jailbroken_ipa }}
