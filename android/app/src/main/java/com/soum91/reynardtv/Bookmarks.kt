@@ -29,6 +29,10 @@ class Bookmarks(context: Context) {
         save(items)
     }
 
+    fun remove(url: String) {
+        save(all().filterNot { it.url == url })
+    }
+
     private fun save(items: List<Bookmark>) {
         val array = JSONArray()
         items.forEach { array.put(JSONObject().put("title", it.title).put("url", it.url)) }

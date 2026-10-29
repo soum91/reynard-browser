@@ -28,6 +28,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -41,6 +42,8 @@ import org.mozilla.geckoview.GeckoSession.PermissionDelegate.ContentPermission
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.ScreenLength
+import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.geckoview.WebResponse
 import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
@@ -60,6 +63,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var session: GeckoSession
     private lateinit var bookmarks: Bookmarks
+    private lateinit var history: HistoryStore
+    private lateinit var downloads: TvDownloads
+    private lateinit var addOns: TvAddons
 
     private data class BrowserTab(
         val session: GeckoSession,
@@ -67,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         var url: String = "",
         var canGoBack: Boolean = false,
         var canGoForward: Boolean = false,
+        val privateMode: Boolean = false,
     )
 
     private val tabs = mutableListOf<BrowserTab>()
@@ -83,6 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var currentTitle = ""
     private var centerDownAt = 0L
     private var centerLongPressed = false
+    private var toolbarHiddenByUser = false
 
     // MARK: - Lifecycle
 
@@ -93,6 +101,10 @@ class MainActivity : AppCompatActivity() {
             packageManager.hasSystemFeature("android.software.leanback")
         cursorMode = isTv
         bookmarks = Bookmarks(this)
+        history = HistoryStore(this)
+        downloads = TvDownloads(this)
+        addOns = TvAddons(this, (application as ReynardApp).runtime)
+        applyWebTheme()
 
         buildLayout()
         createSession()
@@ -101,11 +113,9 @@ class MainActivity : AppCompatActivity() {
         when {
             launchUrl != null -> load(launchUrl)
             prefs.getString("lastUrl", null) != null -> session.loadUri(prefs.getString("lastUrl", null)!!)
-            else -> load(HOME_URL)
+            else -> load(homeUrl())
         }
-        if (isTv) {
-            showToolbar(focusUrl = false)
-        }
+        if (isTv) showToolbar(focusUrl = false)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -223,7 +233,7 @@ class MainActivity : AppCompatActivity() {
                 if (submitted) {
                     load(text.toString())
                     hideKeyboard()
-                    if (isTv) hideToolbar()
+                    focusPage()
                 }
                 submitted
             }
@@ -290,7 +300,7 @@ class MainActivity : AppCompatActivity() {
             val title = tab.title.ifBlank { "New tab" }
             val tabButton = chromeButton((if (active) "●  " else "○  ") + title, "Switch to " + title) {
                 selectTab(index)
-                if (isTv) hideToolbar()
+                focusPage()
             }.apply {
                 textSize = if (isTv) 15f else 13f
                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -343,10 +353,10 @@ class MainActivity : AppCompatActivity() {
     private val desktopMode: Boolean
         get() = prefs.getBoolean("desktopMode", isTv)
 
-    private fun newGeckoSession(): GeckoSession {
+    private fun newGeckoSession(privateMode: Boolean): GeckoSession {
         val settings = GeckoSessionSettings.Builder()
-            .usePrivateMode(false)
-            .useTrackingProtection(true)
+            .usePrivateMode(privateMode)
+            .useTrackingProtection(prefs.getBoolean("trackingProtection", true))
             .userAgentMode(
                 if (desktopMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
                 else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
@@ -371,9 +381,9 @@ class MainActivity : AppCompatActivity() {
         updateDesktopButton()
     }
 
-    private fun openTab(url: String? = null): GeckoSession {
-        val newSession = newGeckoSession()
-        tabs.add(BrowserTab(newSession))
+    private fun openTab(url: String? = null, privateMode: Boolean = false): GeckoSession {
+        val newSession = newGeckoSession(privateMode)
+        tabs.add(BrowserTab(newSession, privateMode = privateMode))
         selectTab(tabs.lastIndex)
         url?.let { newSession.loadUri(it) }
         return newSession
@@ -405,8 +415,8 @@ class MainActivity : AppCompatActivity() {
     private fun closeTab(index: Int) {
         if (index !in tabs.indices) return
         if (tabs.size == 1) {
-            load(HOME_URL)
-            if (isTv) hideToolbar()
+            load(homeUrl())
+            focusPage()
             return
         }
         val removed = tabs[index]
@@ -461,7 +471,15 @@ class MainActivity : AppCompatActivity() {
         session.loadUri(url)
     }
 
-    private fun searchUrl(query: String) = "https://www.google.com/search?q=" + Uri.encode(query)
+    private fun searchUrl(query: String): String {
+        val base = when (prefs.getString("searchEngine", "Google")) {
+            "DuckDuckGo" -> "https://duckduckgo.com/?q="
+            "Bing" -> "https://www.bing.com/search?q="
+            "Brave" -> "https://search.brave.com/search?q="
+            else -> "https://www.google.com/search?q="
+        }
+        return base + Uri.encode(query)
+    }
 
     private val navigationDelegate = object : GeckoSession.NavigationDelegate {
         override fun onLocationChange(
@@ -472,6 +490,9 @@ class MainActivity : AppCompatActivity() {
         ) {
             val tab = tabs.firstOrNull { it.session === session } ?: return
             tab.url = url ?: ""
+            if (!tab.privateMode && !url.isNullOrBlank() && url.startsWith("http")) {
+                history.record(url, tab.title)
+            }
             if (session === this@MainActivity.session) {
                 currentUrl = tab.url
                 if (!urlField.hasFocus()) urlField.setText(currentUrl)
@@ -530,6 +551,7 @@ class MainActivity : AppCompatActivity() {
         override fun onTitleChange(session: GeckoSession, title: String?) {
             val tab = tabs.firstOrNull { it.session === session } ?: return
             tab.title = title?.ifBlank { "New tab" } ?: "New tab"
+            if (!tab.privateMode && tab.url.startsWith("http")) history.updateTitle(tab.url, tab.title)
             if (session === this@MainActivity.session) currentTitle = tab.title
             renderTabs()
         }
@@ -546,8 +568,13 @@ class MainActivity : AppCompatActivity() {
             } else {
                 controller.show(WindowInsetsCompat.Type.systemBars())
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                if (!isTv) toolbar.visibility = View.VISIBLE
+                toolbar.visibility = if (toolbarHiddenByUser && isTv) View.GONE else View.VISIBLE
+                cursor.visibility = if (cursorMode && !toolbarHasFocus) View.VISIBLE else View.GONE
             }
+        }
+
+        override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+            downloads.receive(response)
         }
     }
 
@@ -556,8 +583,8 @@ class MainActivity : AppCompatActivity() {
             // Video sites need autoplay and DRM (Widevine); everything else stays denied.
             val allowed = when (perm.permission) {
                 PermissionDelegate.PERMISSION_AUTOPLAY_AUDIBLE,
-                PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE,
-                PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS -> true
+                PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE -> prefs.getBoolean("autoplay", true)
+                PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS -> prefs.getBoolean("drm", true)
                 else -> false
             }
             return GeckoResult.fromValue(if (allowed) ContentPermission.VALUE_ALLOW else ContentPermission.VALUE_DENY)
@@ -567,6 +594,7 @@ class MainActivity : AppCompatActivity() {
     // MARK: - Toolbar
 
     private fun showToolbar(focusUrl: Boolean) {
+        toolbarHiddenByUser = false
         toolbar.visibility = View.VISIBLE
         cursor.visibility = View.GONE
         if (focusUrl) {
@@ -577,7 +605,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideToolbar() {
-        if (isTv) toolbar.visibility = View.GONE
+        if (!isTv) return
+        toolbarHiddenByUser = true
+        toolbar.visibility = View.GONE
+        if (cursorMode) cursor.visibility = View.VISIBLE
+        geckoView.requestFocus()
+    }
+
+    /** Focus the page while leaving the browser controls visible. */
+    private fun focusPage() {
         if (cursorMode) cursor.visibility = View.VISIBLE
         geckoView.requestFocus()
     }
@@ -587,28 +623,164 @@ class MainActivity : AppCompatActivity() {
 
     private fun showBrowserMenu() {
         val choices = arrayOf(
-            "＋  New tab",
-            "▣  Tabs (" + tabs.size + ")",
-            "☆  Bookmarks",
-            "⌂  Home",
-            "⟳  Reload",
+            "＋  New tab", "◈  New private tab", "▣  Tabs (" + tabs.size + ")",
+            "☆  Bookmarks", "◷  History", "⇩  Downloads", "⬡  Add-ons",
+            "⚙  Settings", "⌂  Home", "⟳  Reload",
             if (desktopMode) "▤  Request mobile site" else "▣  Request desktop site",
-            "×  Close current tab"
+            "⌕  Find in page", "−  Hide toolbar", "×  Close current tab"
         )
         AlertDialog.Builder(this)
             .setTitle("Reynard")
             .setItems(choices) { _, choice ->
                 when (choice) {
-                    0 -> { openTab(HOME_URL); if (isTv) showToolbar(focusUrl = true) }
-                    1 -> showTabPicker()
-                    2 -> showBookmarks()
-                    3 -> { load(HOME_URL); if (isTv) hideToolbar() }
-                    4 -> { session.reload(); if (isTv) hideToolbar() }
-                    5 -> { toggleDesktopMode(); if (isTv) hideToolbar() }
-                    6 -> closeTab(activeTabIndex)
+                    0 -> { openTab(homeUrl()); showToolbar(focusUrl = true) }
+                    1 -> { openTab(homeUrl(), privateMode = true); showToolbar(focusUrl = true) }
+                    2 -> showTabPicker()
+                    3 -> showBookmarks()
+                    4 -> showHistory()
+                    5 -> downloads.showList()
+                    6 -> addOns.showManager()
+                    7 -> showSettings()
+                    8 -> { load(homeUrl()); focusPage() }
+                    9 -> { session.reload(); focusPage() }
+                    10 -> { toggleDesktopMode(); focusPage() }
+                    11 -> findInPage()
+                    12 -> hideToolbar()
+                    13 -> closeTab(activeTabIndex)
                 }
             }
             .show()
+    }
+
+    private fun homeUrl() = prefs.getString("homeUrl", HOME_URL)?.takeIf { it.startsWith("https://") } ?: HOME_URL
+
+    private fun showSettings() {
+        val items = arrayOf("Mozilla Account / Sync", "Appearance", "Browsing and Search", "Privacy and Security", "Add-ons", "Downloads", "About / Updates")
+        AlertDialog.Builder(this).setTitle("Reynard Settings").setItems(items) { _, which ->
+            when (which) {
+                0 -> showSyncInfo()
+                1 -> showAppearanceSettings()
+                2 -> showBrowsingSettings()
+                3 -> showPrivacySettings()
+                4 -> addOns.showManager()
+                5 -> downloads.showList()
+                6 -> showAbout()
+            }
+        }.setNegativeButton("Close", null).show()
+    }
+
+    private fun showSyncInfo() {
+        // Do not accept Firefox credentials until a verified, secure Android Sync backend exists.
+        AlertDialog.Builder(this).setTitle("Mozilla Account")
+            .setMessage("Firefox Sync needs the Android account and encrypted Sync engines integrated before sign-in is available. No account data has been imported yet.")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun showAppearanceSettings() {
+        val names = arrayOf("System", "Dark", "Light")
+        val current = prefs.getInt("webTheme", 0)
+        AlertDialog.Builder(this).setTitle("Website appearance")
+            .setSingleChoiceItems(names, current) { dialog, which ->
+                prefs.edit().putInt("webTheme", which).apply()
+                applyWebTheme()
+                dialog.dismiss()
+            }
+            .setNeutralButton("Show toolbar") { _, _ -> showToolbar(focusUrl = false) }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun applyWebTheme() {
+        val scheme = when (prefs.getInt("webTheme", 0)) {
+            1 -> GeckoRuntimeSettings.COLOR_SCHEME_DARK
+            2 -> GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
+            else -> GeckoRuntimeSettings.COLOR_SCHEME_SYSTEM
+        }
+        (application as ReynardApp).runtime.settings.setPreferredColorScheme(scheme)
+    }
+
+    private fun showBrowsingSettings() {
+        val items = arrayOf("Search engine: ${prefs.getString("searchEngine", "Google")}", "Homepage URL", "${if (desktopMode) "Use mobile sites" else "Use desktop sites"}", "Find in page")
+        AlertDialog.Builder(this).setTitle("Browsing and Search")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        val engines = arrayOf("Google", "DuckDuckGo", "Bing", "Brave")
+                        AlertDialog.Builder(this).setTitle("Search engine")
+                            .setSingleChoiceItems(engines, engines.indexOf(prefs.getString("searchEngine", "Google"))) { d, index ->
+                                prefs.edit().putString("searchEngine", engines[index]).apply()
+                                d.dismiss()
+                            }.setNegativeButton("Cancel", null).show()
+                    }
+                    1 -> {
+                        val edit = EditText(this).apply { setSingleLine(); setText(homeUrl()); selectAll() }
+                        AlertDialog.Builder(this).setTitle("Homepage (https://)").setView(edit)
+                            .setPositiveButton("Save") { _, _ ->
+                                val url = edit.text.toString().trim()
+                                if (url.startsWith("https://")) prefs.edit().putString("homeUrl", url).apply()
+                                else Toast.makeText(this, "Enter an HTTPS URL", Toast.LENGTH_LONG).show()
+                            }.setNegativeButton("Cancel", null).show()
+                    }
+                    2 -> toggleDesktopMode()
+                    3 -> findInPage()
+                }
+            }.setNegativeButton("Close", null).show()
+    }
+
+    private fun showPrivacySettings() {
+        val keys = arrayOf("trackingProtection", "autoplay", "drm")
+        val labels = arrayOf("Tracking protection (new tabs)", "Allow video autoplay", "Allow Widevine DRM playback")
+        val values = keys.map { prefs.getBoolean(it, true) }.toBooleanArray()
+        AlertDialog.Builder(this).setTitle("Privacy and Security")
+            .setMultiChoiceItems(labels, values) { _, i, checked -> values[i] = checked }
+            .setPositiveButton("Apply") { _, _ ->
+                prefs.edit().apply { keys.forEachIndexed { i, key -> putBoolean(key, values[i]) } }.apply()
+            }
+            .setNeutralButton("Clear local history") { _, _ ->
+                AlertDialog.Builder(this).setMessage("Delete this TV browser's locally saved history?")
+                    .setPositiveButton("Delete") { _, _ -> history.clear() }
+                    .setNegativeButton("Cancel", null).show()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun showAbout() {
+        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        AlertDialog.Builder(this).setTitle("About Reynard TV")
+            .setMessage("Version $version\nGeckoView browser for Android TV\n\nGitHub updates and changelogs are published at github.com/soum91/reynard-browser. Updates must be downloaded and installed from the release page.")
+            .setPositiveButton("Open releases") { _, _ -> load("https://github.com/soum91/reynard-browser/releases") }
+            .setNegativeButton("Close", null).show()
+    }
+
+    private fun findInPage() {
+        val edit = EditText(this).apply { setSingleLine(); hint = "Find text" }
+        AlertDialog.Builder(this).setTitle("Find in page").setView(edit)
+            .setPositiveButton("Find") { _, _ ->
+                val query = edit.text.toString()
+                if (query.isNotBlank()) session.finder.find(query, 0)
+                focusPage()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun showHistory() {
+        val items = history.all()
+        AlertDialog.Builder(this).setTitle("History")
+            .setItems(items.map { it.title.ifBlank { it.url } }.toTypedArray()) { _, which -> load(items[which].url); focusPage() }
+            .setNeutralButton("Clear") { _, _ ->
+                AlertDialog.Builder(this).setMessage("Clear local browsing history?")
+                    .setPositiveButton("Clear") { _, _ -> history.clear() }
+                    .setNegativeButton("Cancel", null).show()
+            }.setNegativeButton("Close", null).show()
+    }
+
+    private fun editBookmarks() {
+        val items = bookmarks.all()
+        AlertDialog.Builder(this).setTitle("Edit bookmarks")
+            .setItems(items.map { it.title }.toTypedArray()) { _, which ->
+                val item = items[which]
+                AlertDialog.Builder(this).setTitle(item.title).setMessage(item.url)
+                    .setPositiveButton("Open") { _, _ -> load(item.url) }
+                    .setNeutralButton("Delete") { _, _ -> bookmarks.remove(item.url); updateBookmarkButton() }
+                    .setNegativeButton("Cancel", null).show()
+            }.setNegativeButton("Close", null).show()
     }
 
     private fun showTabPicker() {
@@ -619,9 +791,9 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Open tabs")
             .setItems(labels) { _, which ->
                 selectTab(which)
-                if (isTv) hideToolbar()
+                focusPage()
             }
-            .setPositiveButton("New tab") { _, _ -> openTab(HOME_URL) }
+            .setPositiveButton("New tab") { _, _ -> openTab(homeUrl()) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -632,8 +804,9 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Bookmarks")
             .setItems(items.map { it.title }.toTypedArray()) { _, which ->
                 load(items[which].url)
-                if (isTv) hideToolbar()
+                focusPage()
             }
+            .setNeutralButton("Edit / Delete") { _, _ -> editBookmarks() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -664,7 +837,9 @@ class MainActivity : AppCompatActivity() {
         }
         if (code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_BOOKMARK) {
             if (event.action == KeyEvent.ACTION_UP) {
-                if (toolbar.visibility == View.VISIBLE && toolbarHasFocus && isTv) hideToolbar() else showToolbar(focusUrl = false)
+                if (toolbarHiddenByUser) showToolbar(focusUrl = false)
+                else if (toolbarHasFocus) focusPage()
+                else showToolbar(focusUrl = false)
             }
             return true
         }
@@ -674,7 +849,7 @@ class MainActivity : AppCompatActivity() {
             if (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN &&
                 isTv && actionsRow.findFocus() != null
             ) {
-                hideToolbar()
+                focusPage()
                 return true
             }
             return super.dispatchKeyEvent(event)
@@ -700,11 +875,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Back exits the app only from the toolbar of a page with no history. */
-    private fun wantsBack() = isFullScreen || canGoBack || (isTv && !toolbarHasFocus)
+    private fun wantsBack() = isFullScreen || (isTv && toolbarHiddenByUser) || canGoBack || (isTv && !toolbarHasFocus)
 
     private fun handleBack() {
         when {
             isFullScreen -> session.exitFullScreen()
+            isTv && toolbarHiddenByUser -> showToolbar(focusUrl = false)
             canGoBack -> session.goBack()
             isTv && !toolbarHasFocus -> showToolbar(focusUrl = false)
         }
