@@ -1,5 +1,10 @@
 # Reynard TV changelog
 
+## Android TV Mozilla Account experiment (test branch only)
+- Set up an isolated `android-tv-fxa-experiment` workflow and `.fxatest` app identity so OAuth/Sync experiments cannot overwrite the stable browser.
+- Experimental CI builds publish Action artifacts only; the production TV release remains unchanged.
+- Mozilla Account authentication and Sync engines are still pending and must be validated before sign-in is exposed.
+
 ## Unreleased: TV browser foundation
 
 ### Fixed

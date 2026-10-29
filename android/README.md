@@ -29,3 +29,8 @@ Locally: `cd android && gradle assembleRelease` with the Android SDK installed.
 
 Signing: set the `REYNARD_TV_KEYSTORE_B64` and `REYNARD_TV_KEYSTORE_PASSWORD` repository secrets
 for release signing. Without them CI signs with the public test key in `app/debug.keystore`.
+
+The `android-tv-fxa-experiment` branch is reserved for Mozilla account integration work.
+Its CI artifact uses a distinct `.fxatest` Android package ID, so it can be installed
+alongside the stable TV browser without replacing its app data. Experimental builds are
+uploaded as GitHub Actions artifacts and are not published to the stable TV release.

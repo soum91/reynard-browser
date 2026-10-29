@@ -5,7 +5,7 @@ name: Build Android TV
 
 on:
   push:
-    branches: [android-tv]
+    branches: [android-tv, android-tv-fxa-experiment]
     paths:
       - "android/**"
       - ".github/workflows/android.yml"
@@ -65,6 +65,7 @@ jobs:
         working-directory: android
         env:
           REYNARD_BUILD_NUMBER: ${{ github.run_number }}
+          REYNARD_FXA_EXPERIMENT: ${{ github.ref == 'refs/heads/android-tv-fxa-experiment' }}
         run: |
           set -o pipefail
           gradle --no-daemon --stacktrace assembleRelease 2>&1 | tee build.log
@@ -102,6 +103,7 @@ jobs:
 
       # Publish the first TV release automatically and refresh assets on later runs.
       - name: Publish APK with changelog
+        if: github.ref == 'refs/heads/android-tv'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

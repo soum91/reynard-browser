@@ -5,6 +5,7 @@ plugins {
 // CI stamps the run number in, so every build installs over the previous one.
 val buildNumber = (System.getenv("REYNARD_BUILD_NUMBER") ?: "1").toInt()
 val keystorePath: String? = System.getenv("REYNARD_KEYSTORE")
+val fxaExperiment = System.getenv("REYNARD_FXA_EXPERIMENT") == "true"
 
 android {
     namespace = "com.soum91.reynardtv"
@@ -49,6 +50,11 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Allow experimental Mozilla account testing alongside stable Reynard TV.
+            if (fxaExperiment) {
+                applicationIdSuffix = ".fxatest"
+                versionNameSuffix = "-fxatest"
+            }
             signingConfig = if (keystorePath != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
