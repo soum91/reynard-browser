@@ -30,7 +30,14 @@ Locally: `cd android && gradle assembleRelease` with the Android SDK installed.
 Signing: set the `REYNARD_TV_KEYSTORE_B64` and `REYNARD_TV_KEYSTORE_PASSWORD` repository secrets
 for release signing. Without them CI signs with the public test key in `app/debug.keystore`.
 
-The `android-tv-fxa-experiment` branch is reserved for Mozilla account integration work.
-Its CI artifact uses a distinct `.fxatest` Android package ID, so it can be installed
-alongside the stable TV browser without replacing its app data. Experimental builds are
-uploaded as GitHub Actions artifacts and are not published to the stable TV release.
+The `android-tv-fxa-experiment` branch has a private Mozilla Account sign-in prototype,
+using Mozilla's Android account manager and a restricted GeckoView WebChannel. Its CI artifact
+uses a distinct `.fxatest` Android package ID, so it can be installed alongside the stable TV
+browser without replacing its app data. Experimental builds are uploaded as GitHub Actions
+artifacts and are not published to the stable TV release.
+
+On the test build, open **Settings > Mozilla Account / Sync > Sign in**. Mozilla credentials are
+entered only at `accounts.firefox.com`. This prototype uses the existing Firefox Android OAuth
+client ID solely for private compatibility testing, not production releases. Native sign-in still
+needs testing on a real TV. Firefox Sync is not active, and no bookmarks, history, passwords, or
+tabs will be imported or uploaded until native compatible Sync stores are implemented and tested.

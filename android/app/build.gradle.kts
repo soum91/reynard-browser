@@ -75,6 +75,9 @@ android {
 dependencies {
     // Latest GeckoView release from Mozilla's Maven; CI prints the resolved version.
     implementation("org.mozilla.geckoview:geckoview:+")
+    // Pin the Mozilla account implementation for the private WebChannel experiment.
+    // It owns PKCE, scoped-key handling and Keystore-backed persisted account state.
+    implementation("org.mozilla.components:service-firefox-accounts:159.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.13.1")
 }

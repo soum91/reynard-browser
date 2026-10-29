@@ -3,7 +3,13 @@
 ## Android TV Mozilla Account experiment (test branch only)
 - Set up an isolated `android-tv-fxa-experiment` workflow and `.fxatest` app identity so OAuth/Sync experiments cannot overwrite the stable browser.
 - Experimental CI builds publish Action artifacts only; the production TV release remains unchanged.
-- Mozilla Account authentication and Sync engines are still pending and must be validated before sign-in is exposed.
+- Added private Mozilla Account sign-in test using Mozilla's Android account manager (OAuth PKCE,
+  scoped-key handling, Keystore-backed account persistence) and a built-in GeckoView WebChannel extension.
+- Restricted account messages to top-level `https://accounts.firefox.com`, with native sender validation.
+- Added Sign in / Sign out to the Account settings and clear messaging that Firefox Sync stores
+  are **not** connected. OAuth compatibility still requires a real-device sign-in test.
+- Test-only use of Firefox Android's existing public client ID. A dedicated Reynard registration
+  is required before public distribution.
 
 ## Unreleased: TV browser foundation
 
@@ -25,7 +31,7 @@
 - Selective clearing of Gecko website cookies, caches, sessions and permissions; fixes for private tabs accidentally persisting the last URL or opening non-private popup tabs.
 
 ### Not yet included
-- Mozilla Account sign-in, Firefox Sync engines and Android credential integration.
+- Firefox Sync engines on Android TV (bookmarks, history, passwords, tabs).
 - Interception of ordinary authenticated downloads for segmented FetchDock processing, durable background transfers and persistent transfer queue.
 - Fully featured site permission management, reading mode and custom launcher icon picker.
 

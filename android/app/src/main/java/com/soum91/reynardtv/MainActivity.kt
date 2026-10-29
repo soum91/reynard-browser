@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var history: HistoryStore
     private lateinit var downloads: TvDownloads
     private lateinit var addOns: TvAddons
+    private lateinit var mozillaAccount: TvMozillaAccount
 
     private data class BrowserTab(
         val session: GeckoSession,
@@ -109,6 +110,9 @@ class MainActivity : AppCompatActivity() {
         history = HistoryStore(this)
         downloads = TvDownloads(this)
         addOns = TvAddons(this, (application as ReynardApp).runtime) { url -> openTab(url) }
+        mozillaAccount = TvMozillaAccount(this, (application as ReynardApp).runtime) {
+            // Account status is displayed on demand from Settings.
+        }
         applyWebTheme()
 
         buildLayout()
@@ -133,6 +137,11 @@ class MainActivity : AppCompatActivity() {
         if (tabs.getOrNull(activeTabIndex)?.privateMode != true && currentUrl.startsWith("http")) {
             prefs.edit().putString("lastUrl", currentUrl).apply()
         }
+    }
+
+    override fun onDestroy() {
+        mozillaAccount.close()
+        super.onDestroy()
     }
 
     private fun intentUrl(intent: Intent?): String? {
@@ -378,6 +387,7 @@ class MainActivity : AppCompatActivity() {
             permissionDelegate = this@MainActivity.permissionDelegate
             promptDelegate = Prompts(this@MainActivity)
             open((application as ReynardApp).runtime)
+            mozillaAccount.attach(this)
         }
     }
 
@@ -431,6 +441,7 @@ class MainActivity : AppCompatActivity() {
             removed.session.setActive(false)
         }
         tabs.removeAt(index)
+        mozillaAccount.detach(removed.session)
         removed.session.close()
         if (wasActive) {
             activeTabIndex = -1
@@ -676,10 +687,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSyncInfo() {
-        // Do not accept Firefox credentials until a verified, secure Android Sync backend exists.
-        AlertDialog.Builder(this).setTitle("Mozilla Account")
-            .setMessage("Firefox Sync needs the Android account and encrypted Sync engines integrated before sign-in is available. No account data has been imported yet.")
-            .setPositiveButton("OK", null).show()
+        val account = mozillaAccount
+        val message = if (account.isSignedIn) {
+            "Connected to Mozilla Account${account.email?.let { "\n$it" } ?: ""}.\n\n" +
+                "This experimental build does not synchronize bookmarks, history, passwords or tabs yet."
+        } else {
+            "Private Mozilla Account compatibility test using Firefox for Android's public OAuth client. " +
+                "The sign-in page runs at accounts.firefox.com. Reynard never asks for your password.\n\n" +
+                "This build does not synchronize Firefox data yet."
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Mozilla Account (experimental)")
+            .setMessage(message)
+            .setPositiveButton(if (account.isSignedIn) "Sign out" else "Sign in") { _, _ ->
+                if (account.isSignedIn) {
+                    AlertDialog.Builder(this).setTitle("Sign out of Mozilla Account?")
+                        .setPositiveButton("Sign out") { _, _ -> account.signOut() }
+                        .setNegativeButton("Cancel", null).show()
+                } else {
+                    account.beginSignIn { url -> openTab(url) }
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun showAppearanceSettings() {
