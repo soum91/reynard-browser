@@ -11,7 +11,7 @@ import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebExtensionController
 
 /** GeckoView extension management; uses Mozilla's signature and permission checks. */
-class TvAddons(private val context: Context, runtime: GeckoRuntime) {
+class TvAddons(private val context: Context, runtime: GeckoRuntime, private val openPage: (String) -> Unit) {
     private val controller = runtime.webExtensionController
 
     init {
@@ -60,9 +60,14 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
                 "${addon.metaData?.name ?: addon.id}  (${if (addon.metaData?.enabled == true) "Enabled" else "Disabled"})"
             }.toMutableList()
             labels.add("+ Install signed XPI from URL")
+            labels.add("Browse Mozilla Add-ons")
             AlertDialog.Builder(context).setTitle("Firefox Add-ons")
                 .setItems(labels.toTypedArray()) { _, index ->
-                    if (index == items.size) promptInstall() else showExtension(items[index])
+                    when (index) {
+                        items.size -> promptInstall()
+                        items.size + 1 -> openPage("https://addons.mozilla.org/android/")
+                        else -> showExtension(items[index])
+                    }
                 }
                 .setNegativeButton("Close", null).show()
         }, { e -> toast("Could not list add-ons: ${e?.message}") })
@@ -86,7 +91,7 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
 
     private fun showExtension(extension: WebExtension) {
         val enabled = extension.metaData?.enabled == true
-        val actions = arrayOf(if (enabled) "Disable" else "Enable", "Check for updates", "Uninstall")
+        val actions = arrayOf(if (enabled) "Disable" else "Enable", "Options", "Check for updates", "Uninstall")
         AlertDialog.Builder(context).setTitle(extension.metaData?.name ?: extension.id)
             .setMessage("Version ${extension.metaData?.version ?: "?"}\n${extension.metaData?.description.orEmpty()}")
             .setItems(actions) { _, choice ->
@@ -96,10 +101,14 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
                             else controller.enable(extension, WebExtensionController.EnableSource.USER)
                         result.accept({ toast(if (enabled) "Disabled" else "Enabled") }, { toast("Failed: ${it?.message}") })
                     }
-                    1 -> controller.update(extension).accept({
+                    1 -> {
+                        val url = extension.metaData?.optionsPageUrl
+                        if (url.isNullOrBlank()) toast("This add-on has no options page") else openPage(url)
+                    }
+                    2 -> controller.update(extension).accept({
                         toast(if (it == null) "Already up to date" else "Updated to ${it.metaData?.version}")
                     }, { toast("Update failed: ${it?.message}") })
-                    2 -> AlertDialog.Builder(context).setTitle("Uninstall ${extension.metaData?.name}?")
+                    3 -> AlertDialog.Builder(context).setTitle("Uninstall ${extension.metaData?.name}?")
                         .setPositiveButton("Uninstall") { _, _ ->
                             controller.uninstall(extension).accept({ toast("Uninstalled") }, { toast("Failed: ${it?.message}") })
                         }.setNegativeButton("Cancel", null).show()

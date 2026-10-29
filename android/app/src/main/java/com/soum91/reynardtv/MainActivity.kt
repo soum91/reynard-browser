@@ -10,6 +10,7 @@ import android.graphics.drawable.StateListDrawable
 import android.text.TextUtils
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.TypedValue
@@ -43,7 +44,11 @@ import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.ScreenLength
 import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.geckoview.StorageController
 import org.mozilla.geckoview.WebResponse
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
@@ -103,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         bookmarks = Bookmarks(this)
         history = HistoryStore(this)
         downloads = TvDownloads(this)
-        addOns = TvAddons(this, (application as ReynardApp).runtime)
+        addOns = TvAddons(this, (application as ReynardApp).runtime) { url -> openTab(url) }
         applyWebTheme()
 
         buildLayout()
@@ -125,7 +130,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (currentUrl.startsWith("http")) {
+        if (tabs.getOrNull(activeTabIndex)?.privateMode != true && currentUrl.startsWith("http")) {
             prefs.edit().putString("lastUrl", currentUrl).apply()
         }
     }
@@ -214,7 +219,7 @@ class MainActivity : AppCompatActivity() {
         actionsRow.addView(backButton)
         actionsRow.addView(forwardButton)
         actionsRow.addView(chromeButton("⟳", "Reload page") { session.reload() })
-        actionsRow.addView(chromeButton("⌂", "Home") { load(HOME_URL) })
+        actionsRow.addView(chromeButton("⌂", "Home") { load(homeUrl()) })
 
         urlField = EditText(this).apply {
             setSingleLine()
@@ -330,7 +335,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
         tabStrip.addView(chromeButton("+", "New tab") {
-            openTab(HOME_URL)
+            openTab(homeUrl())
             if (isTv) showToolbar(focusUrl = true)
         }.apply { textSize = 24f })
 
@@ -518,7 +523,8 @@ class MainActivity : AppCompatActivity() {
 
         // GeckoView requires a fresh session for a new window. It loads the URI itself.
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            return GeckoResult.fromValue(openTab())
+            val isPrivate = tabs.firstOrNull { it.session === session }?.privateMode == true
+            return GeckoResult.fromValue(openTab(privateMode = isPrivate))
         }
 
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
@@ -735,19 +741,86 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Apply") { _, _ ->
                 prefs.edit().apply { keys.forEachIndexed { i, key -> putBoolean(key, values[i]) } }.apply()
             }
-            .setNeutralButton("Clear local history") { _, _ ->
-                AlertDialog.Builder(this).setMessage("Delete this TV browser's locally saved history?")
-                    .setPositiveButton("Delete") { _, _ -> history.clear() }
-                    .setNegativeButton("Cancel", null).show()
+            .setNeutralButton("Clear browsing data") { _, _ ->
+                showClearBrowsingData()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** The site's Gecko storage is independent from our app-level history index. */
+    private fun showClearBrowsingData() {
+        val flags = arrayOf(
+            StorageController.ClearFlags.COOKIES or StorageController.ClearFlags.DOM_STORAGES,
+            StorageController.ClearFlags.ALL_CACHES,
+            StorageController.ClearFlags.AUTH_SESSIONS,
+            StorageController.ClearFlags.PERMISSIONS,
+        )
+        val values = booleanArrayOf(true, true, false, false, true)
+        val labels = arrayOf("Cookies and website data", "Website caches", "Site login sessions", "Site permissions", "Local browsing history")
+        AlertDialog.Builder(this).setTitle("Clear browsing data")
+            .setMultiChoiceItems(labels, values) { _, index, checked -> values[index] = checked }
+            .setPositiveButton("Clear selected") { _, _ ->
+                val selected = flags.indices.filter { values[it] }.fold(0L) { result, index -> result or flags[index] }
+                if (values[4]) history.clear()
+                if (selected != 0L) {
+                    (application as ReynardApp).runtime.storageController.clearData(selected)
+                        .accept({ Toast.makeText(this, "Site data cleared", Toast.LENGTH_SHORT).show() },
+                            { err -> Toast.makeText(this, "Could not clear site data: ${err?.message}", Toast.LENGTH_LONG).show() })
+                }
             }.setNegativeButton("Cancel", null).show()
     }
 
     private fun showAbout() {
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         AlertDialog.Builder(this).setTitle("About Reynard TV")
-            .setMessage("Version $version\nGeckoView browser for Android TV\n\nGitHub updates and changelogs are published at github.com/soum91/reynard-browser. Updates must be downloaded and installed from the release page.")
-            .setPositiveButton("Open releases") { _, _ -> load("https://github.com/soum91/reynard-browser/releases") }
+            .setMessage("Version $version\nGeckoView browser for Android TV\n\nUpdates and changelogs are available on GitHub. APK updates install over the existing app only when signed with the same key.")
+            .setPositiveButton("Check updates") { _, _ -> checkForUpdates() }
+            .setNeutralButton("Open releases") { _, _ -> load("https://github.com/soum91/reynard-browser/releases") }
             .setNegativeButton("Close", null).show()
+    }
+
+    /** Compare immutable APK build numbers published in the Android TV prerelease. */
+    private fun checkForUpdates() {
+        Toast.makeText(this, "Checking GitHub releases...", Toast.LENGTH_SHORT).show()
+        Thread {
+            val url = "https://api.github.com/repos/soum91/reynard-browser/releases/tags/android-tv"
+            val result = runCatching {
+                val request = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 12000
+                    readTimeout = 12000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                }
+                try {
+                    check(request.responseCode == 200) { "GitHub returned ${request.responseCode}" }
+                    val response = JSONObject(request.inputStream.bufferedReader().use { it.readText() })
+                    val assets = response.getJSONArray("assets")
+                    val items = (0 until assets.length()).map { assets.getJSONObject(it) }
+                    val apk = items.filter { it.optString("name").endsWith(".apk") }
+                        .maxByOrNull { Regex("build-(\\d+)").find(it.optString("name"))?.groupValues?.get(1)?.toLongOrNull() ?: 0L }
+                        ?: error("No Android TV APK published yet")
+                    val publishedBuild = Regex("build-(\\d+)").find(apk.optString("name"))?.groupValues?.get(1)?.toLongOrNull()
+                        ?: error("APK version missing")
+                    Pair(publishedBuild, apk.getString("browser_download_url"))
+                } finally { request.disconnect() }
+            }
+            runOnUiThread {
+                result.onSuccess { (build, apkUrl) ->
+                    val info = packageManager.getPackageInfo(packageName, 0)
+                    @Suppress("DEPRECATION")
+                    val installed = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+                    val newer = build > installed
+                    AlertDialog.Builder(this).setTitle(if (newer) "Reynard TV update available" else "Reynard TV is up to date")
+                        .setMessage("Installed build: $installed\nLatest build: $build\n\n${if (newer) "Download the new APK and install it using your TV file manager." else "You have the latest published build."}")
+                        .setPositiveButton(if (newer) "Download APK" else "OK") { _, _ -> if (newer) downloads.downloadDirect(apkUrl) }
+                        .setNeutralButton("Release notes") { _, _ -> load("https://github.com/soum91/reynard-browser/releases/tag/android-tv") }
+                        .setNegativeButton("Close", null).show()
+                }.onFailure { err ->
+                    AlertDialog.Builder(this).setTitle("Update check failed")
+                        .setMessage(err.message ?: "Could not contact GitHub")
+                        .setPositiveButton("Open releases") { _, _ -> load("https://github.com/soum91/reynard-browser/releases") }
+                        .setNegativeButton("Close", null).show()
+                }
+            }
+        }.start()
     }
 
     private fun findInPage() {

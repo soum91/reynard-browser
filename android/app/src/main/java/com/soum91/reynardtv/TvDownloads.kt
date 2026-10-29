@@ -97,22 +97,27 @@ class TvDownloads(private val context: Context) {
         AlertDialog.Builder(context).setTitle("FetchDock direct download")
             .setMessage("For direct, publicly accessible HTTPS files. Authenticated browser downloads continue using Gecko's existing stream.")
             .setView(entry).setPositiveButton("Download") { _, _ ->
-                val url = entry.text.toString().trim()
-                if (!url.startsWith("https://")) {
-                    Toast.makeText(context, "Only HTTPS links are accepted", Toast.LENGTH_LONG).show()
-                    return@setPositiveButton
-                }
-                val name = Uri.parse(url).lastPathSegment?.takeIf { it.isNotBlank() }
-                    ?.replace(Regex("[^A-Za-z0-9._ -]"), "_")?.take(120) ?: "download"
-                val task = Task(name, "Connecting")
-                synchronized(tasks) { tasks.add(0, task) }
-                worker.execute {
-                    try {
-                        downloadParallelIfSafe(url, name, task)
-                        task.state = "Saved"
-                    } catch (e: Exception) { task.state = "Failed: ${e.message ?: "Network error"}" }
-                }
+                downloadDirect(entry.text.toString().trim())
             }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** Also used by the updater to save a release APK to TV Downloads. */
+    fun downloadDirect(url: String) {
+        if (!url.startsWith("https://")) {
+            Toast.makeText(context, "Only HTTPS links are accepted", Toast.LENGTH_LONG).show()
+            return
+        }
+        val name = Uri.parse(url).lastPathSegment?.takeIf { it.isNotBlank() }
+                    ?.replace(Regex("[^A-Za-z0-9._ -]"), "_")?.take(120) ?: "download"
+        val task = Task(name, "Connecting")
+        synchronized(tasks) { tasks.add(0, task) }
+        worker.execute {
+            try {
+                downloadParallelIfSafe(url, name, task)
+                task.state = "Saved"
+            } catch (e: Exception) { task.state = "Failed: ${e.message ?: "Network error"}" }
+        }
+        Toast.makeText(context, "Downloading $name. Check Downloads for status.", Toast.LENGTH_LONG).show()
     }
 
     /** Four independent bounded range requests; only for strong-ETag, identity-coded responses. */
