@@ -68,6 +68,9 @@ android {
         jniLibs {
             // Compressed native libs: a much smaller APK to copy to the TV.
             useLegacyPackaging = true
+            // Glean (transitively loaded by FxA) also bundles libxul.so.
+            // Keep the GeckoView copy selected first by the declared dependency order.
+            pickFirsts += "lib/**/libxul.so"
         }
     }
 }

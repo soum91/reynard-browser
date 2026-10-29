@@ -10,6 +10,7 @@
   are **not** connected. OAuth compatibility still requires a real-device sign-in test.
 - Test-only use of Firefox Android's existing public client ID. A dedicated Reynard registration
   is required before public distribution.
+- Resolve duplicate GeckoView/Glean native library packaging in the experimental APK.
 
 ## Unreleased: TV browser foundation
 
