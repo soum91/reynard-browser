@@ -65,7 +65,7 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
                     if (index == items.size) promptInstall() else showExtension(items[index])
                 }
                 .setNegativeButton("Close", null).show()
-        }, { e -> toast("Could not list add-ons: ${e.message}") })
+        }, { e -> toast("Could not list add-ons: ${e?.message}") })
     }
 
     private fun promptInstall() {
@@ -79,8 +79,8 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
                     return@setPositiveButton
                 }
                 controller.install(url).accept({ addon ->
-                    toast("Installed ${addon.metaData?.name ?: addon.id}")
-                }, { error -> toast("Install failed: ${error.message}") })
+                    toast("Installed ${addon?.metaData?.name ?: addon?.id ?: "extension"}")
+                }, { error -> toast("Install failed: ${error?.message}") })
             }.setNegativeButton("Cancel", null).show()
     }
 
@@ -94,14 +94,14 @@ class TvAddons(private val context: Context, runtime: GeckoRuntime) {
                     0 -> {
                         val result = if (enabled) controller.disable(extension, WebExtensionController.EnableSource.USER)
                             else controller.enable(extension, WebExtensionController.EnableSource.USER)
-                        result.accept({ toast(if (enabled) "Disabled" else "Enabled") }, { toast("Failed: ${it.message}") })
+                        result.accept({ toast(if (enabled) "Disabled" else "Enabled") }, { toast("Failed: ${it?.message}") })
                     }
                     1 -> controller.update(extension).accept({
                         toast(if (it == null) "Already up to date" else "Updated to ${it.metaData?.version}")
-                    }, { toast("Update failed: ${it.message}") })
+                    }, { toast("Update failed: ${it?.message}") })
                     2 -> AlertDialog.Builder(context).setTitle("Uninstall ${extension.metaData?.name}?")
                         .setPositiveButton("Uninstall") { _, _ ->
-                            controller.uninstall(extension).accept({ toast("Uninstalled") }, { toast("Failed: ${it.message}") })
+                            controller.uninstall(extension).accept({ toast("Uninstalled") }, { toast("Failed: ${it?.message}") })
                         }.setNegativeButton("Cancel", null).show()
                 }
             }.setNegativeButton("Close", null).show()

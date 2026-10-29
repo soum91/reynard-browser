@@ -20,7 +20,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "0.1.0"
+        versionName = "0.2.0"
         ndk {
             // Most Google TV sets run a 32-bit userland even on 64-bit chips, so ship both.
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
