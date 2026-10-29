@@ -181,6 +181,50 @@ jobs:
           LD: ld64.lld
         run: ./tools/development/build-gecko.sh ${{ matrix.build_args }}
 
+      # Share the compiled engine so other projects (firefox-gecko-ios) can
+      # build GeckoView without compiling Gecko again. Publishing happens in
+      # publish-gecko-engine.yml. This must never break the app build.
+      - name: Package compiled Gecko engine for reuse
+        id: gecko-engine
+        if: ${{ matrix.variant == 'standard' && !inputs.build_bundled_companion }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          key=$(bash tools/ci/gecko-engine-key.sh "$GITHUB_WORKSPACE" "${{ matrix.build_args }}")
+          obj="$GITHUB_WORKSPACE/engine/firefox/obj-aarch64-apple-ios"
+          out="$RUNNER_TEMP/gecko-engine"
+          test -d "$obj/dist/include"
+          test -d "$obj/dist/bin"
+          mkdir -p "$out"
+          echo "$key" > "$obj/reynard-engine-key.txt"
+          # dist/include is mostly symlinks into this checkout's source tree;
+          # resolve them so the archive works from any other path.
+          # A dangling link only produces a warning; keep the archive as long
+          # as it is complete and contains the engine.
+          if ! tar -C "$obj" -czhf "$out/gecko-engine-dist.tar.gz" reynard-engine-key.txt dist 2> "$out/tar-warnings.txt"; then
+            head -n 20 "$out/tar-warnings.txt"
+          fi
+          rm -f "$obj/reynard-engine-key.txt"
+          gzip -t "$out/gecko-engine-dist.tar.gz"
+          tar -tzf "$out/gecko-engine-dist.tar.gz" | grep -q '^dist/include/'
+          tar -tzf "$out/gecko-engine-dist.tar.gz" | grep -qiE '^dist/.*(xul|mozglue)'
+          echo "$key" > "$out/gecko-engine-key.txt"
+          ls -lh "$out"
+          echo "Packaged Gecko engine $key" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compiled Gecko engine
+        if: ${{ steps.gecko-engine.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gecko-engine-dist
+          path: |
+            ${{ runner.temp }}/gecko-engine/gecko-engine-dist.tar.gz
+            ${{ runner.temp }}/gecko-engine/gecko-engine-key.txt
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: warn
+
       - name: Build idevice support library
         run: ./tools/development/build-idevice.sh
 

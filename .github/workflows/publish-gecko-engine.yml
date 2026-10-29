@@ -1,0 +1,78 @@
+name: Publish Gecko Engine
+
+# Copies the compiled Gecko engine from a Reynard build onto the rolling
+# "gecko-engine" release, where firefox-gecko-ios picks it up instead of
+# compiling Gecko itself. Assets are named by content key
+# (tools/ci/gecko-engine-key.sh), so an asset only changes when the Gecko
+# source, patches, build scripts or flags change.
+
+on:
+  workflow_run:
+    workflows: [Build Nightly, Build Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run ID whose Gecko engine to publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-gecko-engine
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.run_id }}
+      TAG: gecko-engine
+    steps:
+      - name: Download the engine from the build run
+        id: download
+        run: |
+          # The engine is uploaded right after Gecko compiles, so it exists
+          # even when a later app packaging step failed.
+          if gh run download "$RUN_ID" -R "$REPO" -n Gecko-engine-dist -D engine; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Run $RUN_ID has no Gecko engine artifact; nothing to publish."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to the gecko-engine release
+        if: steps.download.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          key=$(tr -d '[:space:]' < engine/gecko-engine-key.txt)
+          test -n "$key"
+          test -s engine/gecko-engine-dist.tar.gz
+          gzip -t engine/gecko-engine-dist.tar.gz
+          embedded=$(tar -xzOf engine/gecko-engine-dist.tar.gz reynard-engine-key.txt | tr -d '[:space:]')
+          test "$embedded" = "$key"
+
+          if ! gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" -R "$REPO" --prerelease --latest=false \
+              --target "$(gh api "repos/$REPO" --jq .default_branch)" \
+              --title "Compiled Gecko engine (CI cache)" \
+              --notes "Compiled Gecko obj dist trees for reuse by other builds. Not an app release."
+          fi
+
+          if gh release view "$TAG" -R "$REPO" --json assets --jq '.assets[].name' | grep -q "^$key\.tar\.gz\.part"; then
+            echo "Engine $key is already published."
+            exit 0
+          fi
+
+          # Release assets are limited to 2 GiB each.
+          mkdir -p parts
+          split -b 1900m -d -a 2 engine/gecko-engine-dist.tar.gz "parts/$key.tar.gz.part"
+          (cd engine && sha256sum gecko-engine-dist.tar.gz | sed "s/gecko-engine-dist.tar.gz/$key.tar.gz/") > "parts/$key.sha256"
+          ls -lh parts
+          gh release upload "$TAG" -R "$REPO" parts/*
+          echo "Published Gecko engine $key from run $RUN_ID" >> "$GITHUB_STEP_SUMMARY"
