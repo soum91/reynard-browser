@@ -11,6 +11,7 @@
 - Test-only use of Firefox Android's existing public client ID. A dedicated Reynard registration
   is required before public distribution.
 - Resolve duplicate GeckoView/Glean native library packaging in the experimental APK.
+- Update OAuth configuration construction for Mozilla's current generated Android API.
 
 ## Unreleased: TV browser foundation
 

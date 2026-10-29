@@ -12,8 +12,9 @@ import mozilla.components.concept.sync.DeviceConfig
 import mozilla.components.concept.sync.DeviceType
 import mozilla.components.concept.sync.FxAEntryPoint
 import mozilla.components.service.fxa.FxaAuthData
-import mozilla.components.service.fxa.ServerConfig
 import mozilla.components.service.fxa.manager.FxaAccountManager
+import mozilla.appservices.fxaclient.FxaConfig
+import mozilla.appservices.fxaclient.FxaServer
 import org.json.JSONObject
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
@@ -47,7 +48,7 @@ class TvMozillaAccount(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val manager = FxaAccountManager(
         context = activity.applicationContext,
-        serverConfig = ServerConfig.release(EXPERIMENT_CLIENT_ID, WEBCHANNEL_REDIRECT),
+        serverConfig = FxaConfig(FxaServer.Release, EXPERIMENT_CLIENT_ID, WEBCHANNEL_REDIRECT),
         deviceConfig = DeviceConfig(
             name = "Reynard TV (test)",
             type = DeviceType.TV,
@@ -65,8 +66,12 @@ class TvMozillaAccount(
     init {
         controller.ensureBuiltIn("resource://android/assets/fxawebchannel/", EXTENSION_ID)
             .accept({ installed ->
-                extension = installed
-                sessions.forEach { register(it, installed) }
+                if (installed == null) {
+                    extensionError = "GeckoView did not install the account extension"
+                } else {
+                    extension = installed
+                    sessions.forEach { register(it, installed) }
+                }
             }, { error ->
                 extensionError = error?.message ?: "WebChannel installation failed"
             })
