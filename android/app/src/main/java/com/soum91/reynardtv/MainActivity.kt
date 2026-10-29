@@ -469,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         val text = input.trim()
         if (text.isEmpty()) return
         val url = when {
-            text.startsWith("http://") || text.startsWith("https://") || text.startsWith("about:") -> text
+            text.startsWith("http://") || text.startsWith("https://") || text.startsWith("about:") || text.startsWith("moz-extension://") -> text
             !text.contains(' ') && text.contains('.') -> "https://$text"
             else -> searchUrl(text)
         }
@@ -529,7 +529,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
             val uri = request.uri
-            if (uri.startsWith("http") || uri.startsWith("about:") || uri.startsWith("data:") || uri.startsWith("blob:") || uri.startsWith("resource:")) {
+            if (uri.startsWith("http") || uri.startsWith("about:") || uri.startsWith("data:") || uri.startsWith("blob:") || uri.startsWith("resource:") || uri.startsWith("moz-extension://")) {
                 return GeckoResult.allow()
             }
             // intent:, market:, etc. go to whatever app handles them.
