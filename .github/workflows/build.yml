@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   prepare:
-    if: ${{ github.repository_owner == 'minh-ton' || github.event_name == 'workflow_dispatch' || inputs.build_bundled_companion }}
+    if: ${{ github.repository_owner == 'minh-ton' || github.event_name == 'workflow_dispatch' || inputs.build_bundled_companion || (inputs.nightly && github.repository == 'soum91/reynard-browser' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     name: Select build variants
     runs-on: ubuntu-latest
     outputs:
