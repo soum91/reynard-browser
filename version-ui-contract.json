@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "name": "iPhone native browser",
+      "evidence": [
+        {
+          "path": "browser/Reynard/Client/Interface/Library/Settings/Sections/About/AboutSettingsSection.swift",
+          "contains": [
+            "CFBundleShortVersionString",
+            "CFBundleVersion",
+            "valueCell"
+          ]
+        }
+      ]
+    }
+  ]
+}

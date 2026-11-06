@@ -51,6 +51,15 @@ jobs:
           ref: ${{ inputs.checkout_ref }}
           fetch-depth: 1
 
+      - name: Verify installed version UI contract
+        shell: bash
+        run: |
+          if command -v python3 >/dev/null 2>&1; then
+            python3 "$GITHUB_WORKSPACE/scripts/check_version_ui.py"
+          else
+            python "$GITHUB_WORKSPACE/scripts/check_version_ui.py"
+          fi
+
       - name: Reject invalid LoadInfo ownership usage
         run: |
           if grep -nF 'LoadInfo()->GetOriginAttributes' patches/widget/uikit/ExternalResponseService.mm.patch; then
