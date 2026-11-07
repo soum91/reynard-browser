@@ -71,7 +71,7 @@ fi
 cd "$FIREFOX_DIR"
 # Keep verification on by default in the app, but permit the user to disable
 # it through Gecko's xpinstall.signatures.required preference.
-export MOZ_REQUIRE_SIGNING=0
+export MOZ_REQUIRE_SIGNING=
 ./mach build
 
 rm "$FIREFOX_DIR/.mozconfig"
