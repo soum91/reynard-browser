@@ -18,6 +18,8 @@ enum RuntimePreferences {
     static func setRequireAddonSignatures(_ required: Bool) {
         UserDefaults.standard.set(required, forKey: signatureKey)
         GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": required])
+        GeckoRuntime.dispatchEvent(type: "GeckoView:ResetUserPrefs",
+                                   message: ["names": ["xpinstall.signatures.required"]])
     }
 
     static func apply() {
