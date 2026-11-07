@@ -34,6 +34,7 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
     }
     
     private enum MoreRow: CaseIterable {
+        case requireSigning
         case discover
         case installFromFile
         case updateAll
@@ -76,7 +77,7 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
     }
     
     private var displayedMoreRows: [MoreRow] {
-        return canCheckForAddonUpdates ? MoreRow.allCases : [.discover, .installFromFile]
+        return canCheckForAddonUpdates ? MoreRow.allCases : [.requireSigning, .discover, .installFromFile]
     }
     
     private var addonUpdateActionTitle: String {
@@ -192,8 +193,15 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
             }
             let cell = SettingsTableViewCell(style: .default, reuseIdentifier: nil)
             switch displayedMoreRows[indexPath.row] {
+            case .requireSigning:
+                cell.textLabel?.text = NSLocalizedString("Require signed add-ons", comment: "")
+                let toggle = UISwitch()
+                toggle.isOn = RuntimePreferences.requireAddonSignatures
+                toggle.addTarget(self, action: #selector(signatureSwitchChanged(_:)), for: .valueChanged)
+                cell.accessoryView = toggle
+                cell.selectionStyle = .none
             case .discover:
-                cell.textLabel?.text = NSLocalizedString("Discover Add-ons…", comment: "")
+                cell.textLabel?.text = NSLocalizedString("Browse Add-ons…", comment: "")
                 cell.textLabel?.textColor = view.tintColor
             case .installFromFile:
                 cell.textLabel?.text = isInstallingAddonFromFile ? NSLocalizedString("Installing Add-on…", comment: "") : NSLocalizedString("Install Add-on from File…", comment: "")
@@ -236,8 +244,10 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
                 return
             }
             switch displayedMoreRows[indexPath.row] {
+            case .requireSigning:
+                return
             case .discover:
-                LibrarySharedUtils.openLinkInBrowser("https://addons.mozilla.org/android/", from: self)
+                navigationController?.pushViewController(ReynardAddonCatalogViewController(), animated: true)
             case .installFromFile:
                 guard !isInstallingAddonFromFile else {
                     return
@@ -279,6 +289,15 @@ final class AddonsPreferencesViewController: SettingsTableViewController {
         }
     }
     
+    @objc private func signatureSwitchChanged(_ sender: UISwitch) {
+        RuntimePreferences.setRequireAddonSignatures(sender.isOn)
+        let alert = UIAlertController(title: NSLocalizedString("Restart Reynard", comment: ""),
+            message: NSLocalizedString("Close and reopen the app before installing an add-on. Turning checks back on may disable unsigned add-ons.", comment: ""),
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: ""), style: .default))
+        present(alert, animated: true)
+    }
+
     // MARK: - Add-on Loading
     
     private func loadCachedAddons() {
@@ -626,5 +645,214 @@ extension AddonsPreferencesViewController: UIDocumentPickerDelegate {
         }
         
         installAddonPackage(from: url)
+    }
+}
+
+
+@MainActor
+final class ReynardAddonCatalogViewController: UITableViewController, UISearchResultsUpdating {
+    private struct SearchResponse: Decodable {
+        let results: [CatalogAddon]
+    }
+
+    private struct CatalogAddon: Decodable {
+        struct Version: Decodable {
+            struct File: Decodable {
+                let url: String?
+            }
+            let file: File?
+        }
+
+        let id: Int
+        let name: [String: String]?
+        let summary: [String: String]?
+        let currentVersion: Version?
+        let iconURL: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, name, summary
+            case currentVersion = "current_version"
+            case iconURL = "icon_url"
+        }
+
+        var displayName: String {
+            localized(name) ?? "Unnamed add-on"
+        }
+
+        var displaySummary: String {
+            localized(summary) ?? "Mozilla-listed Firefox for Android extension"
+        }
+
+        var downloadURL: URL? {
+            guard let value = currentVersion?.file?.url,
+                  let url = URL(string: value),
+                  url.scheme?.lowercased() == "https",
+                  url.host?.lowercased() == "addons.mozilla.org" else {
+                return nil
+            }
+            return url
+        }
+
+        private func localized(_ values: [String: String]?) -> String? {
+            guard let values else { return nil }
+            return values["en-US"] ?? values["en-us"] ?? values.values.first
+        }
+    }
+
+    private let searchController = UISearchController(searchResultsController: nil)
+    private var results: [CatalogAddon] = []
+    private var searchTask: Task<Void, Never>?
+    private var isLoading = false
+    private var requestGeneration = 0
+
+    init() {
+        super.init(style: .insetGrouped)
+        title = "Browse Add-ons"
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "catalog-addon")
+        searchController.searchResultsUpdater = self
+        searchController.obscuresBackgroundDuringPresentation = false
+        searchController.searchBar.placeholder = "Search Mozilla Add-ons"
+        navigationItem.searchController = searchController
+        navigationItem.hidesSearchBarWhenScrolling = false
+        definesPresentationContext = true
+        load(query: "")
+    }
+
+    func updateSearchResults(for searchController: UISearchController) {
+        let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            load(query: query)
+        }
+    }
+
+    private func load(query: String) {
+        searchTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        isLoading = true
+        tableView.reloadData()
+
+        searchTask = Task { @MainActor in
+            defer {
+                if generation == requestGeneration {
+                    isLoading = false
+                    tableView.reloadData()
+                }
+            }
+
+            do {
+                var components = URLComponents(string: "https://addons.mozilla.org/api/v5/addons/search/")!
+                components.queryItems = [
+                    URLQueryItem(name: "app", value: "firefox"),
+                    URLQueryItem(name: "appversion", value: "158.0"),
+                    URLQueryItem(name: "type", value: "extension"),
+                    URLQueryItem(name: "page_size", value: "40"),
+                    URLQueryItem(name: "sort", value: query.isEmpty ? "users" : "relevance"),
+                    URLQueryItem(name: "q", value: query)
+                ]
+                guard let url = components.url else { throw URLError(.badURL) }
+                var request = URLRequest(url: url)
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard generation == requestGeneration else { return }
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                    throw URLError(.badServerResponse)
+                }
+                results = try JSONDecoder().decode(SearchResponse.self, from: data).results
+            } catch is CancellationError {
+                return
+            } catch {
+                guard generation == requestGeneration else { return }
+                results = []
+                self.showAlert(title: "Add-on catalog unavailable", message: error.localizedDescription)
+            }
+        }
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        results.count
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        isLoading ? "Searching Mozilla Add-ons…" : "Firefox desktop extensions"
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "catalog-addon", for: indexPath)
+        let addon = results[indexPath.row]
+        var content = UIListContentConfiguration.subtitleCell()
+        content.text = addon.displayName
+        content.secondaryText = addon.displaySummary
+        content.image = UIImage(systemName: "puzzlepiece.extension")
+        content.imageProperties.maximumSize = CGSize(width: 30, height: 30)
+        cell.contentConfiguration = content
+        cell.accessoryType = .disclosureIndicator
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        guard results.indices.contains(indexPath.row) else { return }
+        let addon = results[indexPath.row]
+        guard addon.downloadURL != nil else {
+            self.showAlert(title: "Add-on unavailable", message: "Mozilla did not provide a downloadable package for this extension.")
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Install \(addon.displayName)?",
+            message: addon.displaySummary,
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Install", style: .default) { [weak self] _ in
+            self?.install(addon)
+        })
+        alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func install(_ addon: CatalogAddon) {
+        guard let url = addon.downloadURL else { return }
+        let progress = UIAlertController(title: "Installing \(addon.displayName)", message: "Downloading add-on…", preferredStyle: .alert)
+        present(progress, animated: true)
+
+        Task { @MainActor in
+            let package = FileManager.default.temporaryDirectory
+                .appendingPathComponent("amo-\(addon.id)-\(UUID().uuidString).xpi")
+            do {
+                let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                      let finalURL = response.url,
+                      finalURL.scheme?.lowercased() == "https",
+                      ["addons.mozilla.org", "addons.cdn.mozilla.net"].contains(finalURL.host?.lowercased() ?? "") else {
+                    throw URLError(.badServerResponse)
+                }
+                try FileManager.default.moveItem(at: temporaryURL, to: package)
+                _ = try await AddonRuntime.shared.install(url: package.absoluteString, installMethod: .manager)
+                try? FileManager.default.removeItem(at: package)
+                progress.dismiss(animated: true) {
+                    self.showAlert(title: "Add-on installed", message: addon.displayName)
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: package)
+                progress.dismiss(animated: true) {
+                    self.showAlert(title: "Add-on not installed", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }

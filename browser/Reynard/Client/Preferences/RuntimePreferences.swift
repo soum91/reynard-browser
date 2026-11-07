@@ -9,7 +9,19 @@ import Darwin
 import GeckoView
 
 enum RuntimePreferences {
+    private static let signatureKey = "FirefoxGeckoRequireAddonSignatures"
+
+    static var requireAddonSignatures: Bool {
+        UserDefaults.standard.object(forKey: signatureKey) as? Bool ?? true
+    }
+
+    static func setRequireAddonSignatures(_ required: Bool) {
+        UserDefaults.standard.set(required, forKey: signatureKey)
+        GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": required])
+    }
+
     static func apply() {
+        GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": requireAddonSignatures])
         // On sites with heavy graphics, the GPU process would crash
         // multiple times during user interactions on the iPad Air 2.
         // I originally thought this is due to OOM, but it turns out
